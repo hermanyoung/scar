@@ -1,0 +1,7 @@
+cwe: "200"
+expect: found
+severity: MEDIUM
+evidence_contains:
+  - "MachineName"
+  - "ConnectionString"
+notes: "Info disclosure — unauthenticated metadata endpoint exposes env vars and system info"

@@ -1,0 +1,15 @@
+name: opengrep
+binary: opengrep
+version_cmd: ["opengrep", "--version"]
+output_format: sarif
+sarif_native: true
+success_exit_codes: [0, 1]
+arg_template: ["{binary}", "scan", "--config", "{rules_path}", "--sarif-output={output_path}", "--error", "{target_path}"]
+default_args:
+  rules_path: "config/rules/opengrep"
+output_capture: file
+timeout_seconds: 300
+target_type: directory
+applies_to: ["*.py", "*.cs", "*.razor", "*.csproj", "Dockerfile", "Dockerfile.*", "*.dockerfile"]
+cwe_source: metadata
+optional: true

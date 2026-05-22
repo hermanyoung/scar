@@ -1,0 +1,25 @@
+rules:
+  - id: csharp.aspnet-core.security.cwe-601.redirect-user-input
+    patterns:
+      - pattern-either:
+          - pattern: Redirect($REQUEST)
+          - pattern: RedirectPermanent($REQUEST)
+          - pattern: Redirect(Request.Query["..."])
+          - pattern: Redirect(returnUrl)
+          - pattern: Redirect(url)
+    message: >
+      Redirect using potentially user-controlled URL. This can lead to open redirect
+      attacks where users are sent to malicious sites. Use Url.IsLocalUrl() to validate
+      the redirect target, or use RedirectToAction/RedirectToPage instead.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - asp.net

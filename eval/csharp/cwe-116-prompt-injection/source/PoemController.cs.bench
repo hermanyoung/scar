@@ -1,0 +1,7 @@
+cwe: "116"
+expect: found
+severity: MEDIUM
+evidence_contains:
+  - "FirstName"
+  - "prompt"
+notes: "Prompt injection — user PII concatenated into LLM prompt without sanitisation"

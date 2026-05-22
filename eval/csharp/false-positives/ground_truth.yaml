@@ -1,0 +1,30 @@
+# Ground truth: no findings expected in this safe C# controller.
+#
+# Covers multiple CWEs as hard negatives — safe patterns that could be
+# mistaken for vulnerabilities by an over-eager model.
+#
+# Note: source files are at entry root (no source/ subdirectory).
+# The benchmark runner falls back to the entry root for false-positive entries.
+
+cwe: "multi"
+language: csharp
+description: "Safe controller using EF Core LINQ, System.Text.Json, and SHA256 — no vulnerabilities"
+
+findings:
+  - file: "SecureController.cs"
+    line: 22
+    cwe_id: "CWE-863"
+    label: false_positive
+    description: "EF Core LINQ with ownership check (u.OwnerId == userId) — correctly scoped"
+
+  - file: "SecureController.cs"
+    line: 32
+    cwe_id: "CWE-502"
+    label: false_positive
+    description: "System.Text.Json with typed DTO — no TypeNameHandling, safe deserialization"
+
+  - file: "SecureController.cs"
+    line: 40
+    cwe_id: "CWE-327"
+    label: false_positive
+    description: "SHA256 is a strong hash — not a weak algorithm"

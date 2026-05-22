@@ -1,0 +1,37 @@
+# Ground truth for CWE-863: IDOR via [Authorize] without ownership verification.
+#
+# The Contact model has a CreatedBy field that is set on creation but
+# never checked in read/update/delete operations.
+
+cwe: "863"
+language: csharp
+description: "IDOR via [Authorize] without ownership verification"
+
+findings:
+  - file: "VulnerableController.cs"
+    line: 22
+    cwe_id: "CWE-863"
+    label: true_positive
+    severity: medium
+    description: "GET list returns all contacts without user-scoped filter"
+
+  - file: "VulnerableController.cs"
+    line: 29
+    cwe_id: "CWE-863"
+    label: true_positive
+    severity: medium
+    description: "GET by ID fetches any contact without ownership check"
+
+  - file: "VulnerableController.cs"
+    line: 46
+    cwe_id: "CWE-863"
+    label: true_positive
+    severity: critical
+    description: "PUT updates any contact without ownership verification"
+
+  - file: "VulnerableController.cs"
+    line: 58
+    cwe_id: "CWE-863"
+    label: true_positive
+    severity: critical
+    description: "DELETE removes any contact without ownership verification"

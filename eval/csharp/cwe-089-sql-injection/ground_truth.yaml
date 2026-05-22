@@ -1,0 +1,26 @@
+# Ground truth for CWE-089 SQL Injection corpus entry.
+#
+# Each finding declares what a correct security review should report.
+# label: true_positive  — the model SHOULD flag this
+# label: false_positive — the model should NOT flag this (hard negative)
+
+cwe: "089"
+language: csharp
+description: "SQL injection via string concatenation and interpolation in ADO.NET SqlCommand"
+
+findings:
+  - file: "VulnerableController.cs"
+    line: 17
+    cwe_id: "CWE-89"
+    label: true_positive
+    description: "SqlCommand built with string concatenation of user-controlled 'name' parameter"
+    sink: "SqlCommand constructor"
+    source: "name parameter"
+
+  - file: "VulnerableController.cs"
+    line: 28
+    cwe_id: "CWE-89"
+    label: true_positive
+    description: "SqlCommand built with f-string interpolation of user-controlled 'query' parameter"
+    sink: "SqlCommand constructor"
+    source: "query parameter"

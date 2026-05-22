@@ -1,0 +1,42 @@
+rules:
+  - id: csharp.lang.security.cwe-078.process-start-shell
+    patterns:
+      - pattern-either:
+          - pattern: |
+              Process.Start($"...", ...)
+          - pattern: |
+              Process.Start("cmd", $"...", ...)
+          - pattern: |
+              Process.Start("cmd.exe", $"...", ...)
+          - pattern: |
+              Process.Start("powershell", $"...", ...)
+          - pattern: |
+              Process.Start("bash", $"...", ...)
+          - pattern: |
+              $PSI.FileName = "cmd";
+          - pattern: |
+              $PSI.FileName = "cmd.exe";
+          - pattern: |
+              $PSI.FileName = "powershell";
+          - pattern: |
+              $PSI.UseShellExecute = true;
+          - pattern: |
+              $PSI.Arguments = $"...";
+          - pattern: |
+              $PSI.Arguments = "..." + $X + "...";
+    message: >
+      Process started with shell execution or string-interpolated arguments.
+      User-controlled input in process arguments can lead to OS command injection.
+      Use ProcessStartInfo with UseShellExecute=false and pass arguments as a list.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - .net

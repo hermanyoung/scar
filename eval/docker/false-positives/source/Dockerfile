@@ -1,0 +1,32 @@
+# Safe: ARG→ENV used exclusively for non-secret build metadata.
+# These should NOT be flagged as secret exposure.
+
+FROM node:22-slim AS build
+WORKDIR /app
+
+# ok: cwe-200-arg-env-secret — build metadata, not secrets
+ARG APPMETADATABUILDNUMBER
+ARG APPMETADATABRANCHNAME
+ARG APPMETADATACOMMITHASH
+
+ENV APPMETADATABUILDNUMBER=$APPMETADATABUILDNUMBER
+ENV APPMETADATABRANCHNAME=$APPMETADATABRANCHNAME
+ENV APPMETADATACOMMITHASH=$APPMETADATACOMMITHASH
+
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g corepack@latest && corepack enable && pnpm install
+COPY . .
+RUN pnpm run build
+
+FROM node:22-slim
+WORKDIR /app
+COPY --from=build /app/dist .
+
+ARG APPMETADATABUILDNUMBER
+ARG APPMETADATABRANCHNAME
+ENV APPMETADATABUILDNUMBER=$APPMETADATABUILDNUMBER
+ENV APPMETADATABRANCHNAME=$APPMETADATABRANCHNAME
+
+USER node
+EXPOSE 8080
+CMD ["node", "server.js"]

@@ -1,0 +1,60 @@
+rules:
+  - id: python.flask.security.debug-true
+    pattern: app.run(..., debug=True, ...)
+    message: >
+      Flask app running with debug=True. This enables the Werkzeug debugger which
+      provides an interactive Python shell to anyone who can trigger an error.
+      Never use debug=True in production. Use environment variables to control this.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-215: Insertion of Sensitive Information Into Debugging Code"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - python
+        - flask
+
+  - id: python.flask.security.render-template-string
+    pattern: render_template_string($X)
+    message: >
+      Flask render_template_string() with potentially user-controlled input.
+      This can lead to Server-Side Template Injection (SSTI), allowing arbitrary
+      code execution. Use render_template() with a file-based template instead.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - python
+        - flask
+
+  - id: python.flask.security.open-redirect
+    patterns:
+      - pattern-either:
+          - pattern: redirect(request.args.get("..."))
+          - pattern: redirect(request.args["..."])
+          - pattern: redirect(request.form.get("..."))
+          - pattern: redirect(request.form["..."])
+          - pattern: redirect(url)
+    message: >
+      Flask redirect with potentially user-controlled URL. This can lead to open
+      redirect attacks. Validate the URL is safe using url_has_allowed_host_and_scheme()
+      or restrict redirects to internal paths.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - python
+        - flask

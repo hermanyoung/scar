@@ -1,0 +1,6 @@
+# Keep directory structure, ignore runtime output
+*
+!.gitignore
+!*/
+*/*
+!*/.gitkeep

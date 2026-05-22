@@ -1,0 +1,29 @@
+rules:
+  - id: csharp.lang.security.cwe-079.raw-html-output
+    patterns:
+      - pattern-either:
+          - pattern: |
+              Content($"...");
+          - pattern: |
+              new HtmlString($"...");
+          - pattern: |
+              Html.Raw($X)
+          - pattern: |
+              Response.Write($X)
+    message: >
+      User-controlled data written as raw HTML without encoding.
+      This can lead to Cross-Site Scripting (XSS). Use HtmlEncoder.Encode()
+      or Razor's default encoding (@Model.Value instead of @Html.Raw()).
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      owasp:
+        - "A03:2021 - Injection"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - .net
+        - asp.net

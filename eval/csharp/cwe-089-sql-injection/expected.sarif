@@ -1,0 +1,46 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "opengrep",
+          "rules": []
+        }
+      },
+      "results": [
+        {
+          "ruleId": "csharp.lang.security.cwe-089.ado-net-string-concat",
+          "level": "error",
+          "message": {
+            "text": "SQL query constructed via string concatenation in ADO.NET SqlCommand."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "VulnerableController.cs" },
+                "region": { "startLine": 17 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "csharp.lang.security.cwe-089.ado-net-string-concat",
+          "level": "error",
+          "message": {
+            "text": "SQL query constructed via string interpolation in ADO.NET SqlCommand."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "VulnerableController.cs" },
+                "region": { "startLine": 28 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

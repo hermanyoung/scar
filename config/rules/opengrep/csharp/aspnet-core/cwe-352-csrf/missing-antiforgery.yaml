@@ -1,0 +1,34 @@
+rules:
+  - id: csharp.aspnet-core.security.cwe-352.missing-antiforgery
+    patterns:
+      - pattern: |
+          [HttpPost]
+          public $RET $METHOD(...) { ... }
+      - pattern-not: |
+          [ValidateAntiForgeryToken]
+          [HttpPost]
+          public $RET $METHOD(...) { ... }
+      - pattern-not: |
+          [HttpPost]
+          [ValidateAntiForgeryToken]
+          public $RET $METHOD(...) { ... }
+      - pattern-not: |
+          [IgnoreAntiforgeryToken]
+          [HttpPost]
+          public $RET $METHOD(...) { ... }
+    message: >
+      POST endpoint missing [ValidateAntiForgeryToken] attribute. State-changing
+      endpoints should be protected against CSRF. Add [ValidateAntiForgeryToken]
+      or use [AutoValidateAntiforgeryToken] at the controller level.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-352: Cross-Site Request Forgery (CSRF)"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - asp.net

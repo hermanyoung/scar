@@ -1,0 +1,30 @@
+rules:
+  - id: python.lang.security.cwe-330.weak-random-security
+    patterns:
+      - pattern-either:
+          - pattern: random.random()
+          - pattern: random.randint(...)
+          - pattern: random.choice(...)
+          - pattern: random.choices(...)
+          - pattern: random.sample(...)
+          - pattern: random.getrandbits(...)
+          - pattern: random.uniform(...)
+    message: >
+      Use of the 'random' module detected. Python's random module uses a
+      Mersenne Twister PRNG which is predictable and must not be used for
+      security-sensitive operations (tokens, passwords, session IDs, nonces,
+      cryptographic keys). Use the 'secrets' module instead:
+      secrets.token_hex(), secrets.token_urlsafe(), secrets.choice().
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-330: Use of Insufficiently Random Values"
+        - "CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      confidence: LOW
+      impact: HIGH
+      category: security
+      technology:
+        - python

@@ -1,0 +1,30 @@
+rules:
+  - id: csharp.aspnet-core.security.cwe-918.httpclient-user-url
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CLIENT.GetAsync($URL)
+          - pattern: |
+              $CLIENT.PostAsync($URL, ...)
+          - pattern: |
+              $CLIENT.SendAsync(new HttpRequestMessage(..., $URL))
+          - pattern: |
+              $CLIENT.GetStringAsync($URL)
+          - pattern: |
+              new HttpRequestMessage(..., $"...")
+    message: >
+      HttpClient request with potentially user-controlled URL. This can lead to
+      Server-Side Request Forgery (SSRF), allowing attackers to access internal
+      services. Validate URLs against an allowlist of permitted hosts.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-918: Server-Side Request Forgery (SSRF)"
+      owasp:
+        - "A10:2021 - Server-Side Request Forgery"
+      confidence: LOW
+      impact: HIGH
+      category: security
+      technology:
+        - .net

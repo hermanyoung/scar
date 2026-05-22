@@ -1,0 +1,45 @@
+# =============================================================================
+# Model Registry
+# =============================================================================
+# Loaded by: src/security_review/providers.py (resolve_model_name)
+# Schema:
+#
+#   aliases:                          # short name → canonical model ID
+#     <short-name>: "<canonical-id>"  # e.g. claude-sonnet: "claude-sonnet-4.6"
+#
+#   providers:                        # provider-specific name overrides
+#     <provider>:                     # e.g. anthropic, claude, copilot, openai, codex
+#       "<canonical-id>": "<wire-id>" # e.g. "claude-sonnet-4.6": "claude-sonnet-4-6"
+#
+# Resolution: --provider copilot:claude-sonnet
+#   1. "claude-sonnet" → aliases → "claude-sonnet-4.6"
+#   2. "copilot" → providers.copilot → no override → "claude-sonnet-4.6"
+#   3. If "anthropic" → providers.anthropic → "claude-sonnet-4-6" (dashes)
+#
+# Add new models here, not in Python code.
+# =============================================================================
+
+# Short names -> canonical model ID (latest version)
+aliases:
+  claude-sonnet: "claude-sonnet-4.6"
+  claude-opus: "claude-opus-4.6"
+  claude-haiku: "claude-haiku-4.5"
+  gpt: "gpt-5.5"
+  gpt-mini: "gpt-5.4-mini"
+  o3: "o3"
+
+# Provider-specific name overrides.
+# If a canonical model ID needs a different string for a specific provider,
+# map it here. If not listed, the canonical ID is used as-is.
+providers:
+  anthropic:
+    "claude-sonnet-4.6": "claude-sonnet-4-6"
+    "claude-opus-4.6": "claude-opus-4-6"
+    "claude-haiku-4.5": "claude-haiku-4-5"
+  claude:
+    "claude-sonnet-4.6": "claude-sonnet-4-6"
+    "claude-opus-4.6": "claude-opus-4-6"
+    "claude-haiku-4.5": "claude-haiku-4-5"
+  copilot: {}
+  openai: {}
+  codex: {}

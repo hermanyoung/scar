@@ -1,0 +1,13 @@
+name: hadolint
+binary: hadolint
+version_cmd: ["hadolint", "--version"]
+output_format: sarif
+sarif_native: true
+success_exit_codes: [0, 1]
+arg_template: ["{binary}", "--format", "sarif", "{target_path}"]
+output_capture: stdout
+timeout_seconds: 60
+target_type: file
+applies_to: ["Dockerfile", "Dockerfile.*", "*.dockerfile"]
+cwe_source: rule_id_map
+optional: true

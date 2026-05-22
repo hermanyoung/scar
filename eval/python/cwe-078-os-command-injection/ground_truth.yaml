@@ -1,0 +1,44 @@
+# Ground truth for CWE-078 OS Command Injection corpus entry.
+#
+# Each finding declares what a correct security review should report.
+# The benchmark scorer compares model output against these labels.
+#
+# label: true_positive  — the model SHOULD flag this
+# label: false_positive — the model should NOT flag this (hard negative)
+
+cwe: "078"
+language: python
+description: "OS command injection via subprocess shell=True and os.system/os.popen"
+
+findings:
+  - file: "command_injection.py"
+    line: 8
+    cwe_id: "CWE-78"
+    label: true_positive
+    description: "subprocess.call with shell=True and user-controlled argument"
+    sink: "subprocess.call"
+    source: "user_cmd parameter"
+
+  - file: "command_injection.py"
+    line: 13
+    cwe_id: "CWE-78"
+    label: true_positive
+    description: "os.system with f-string interpolation of user input"
+    sink: "os.system"
+    source: "filename parameter"
+
+  - file: "command_injection.py"
+    line: 18
+    cwe_id: "CWE-78"
+    label: true_positive
+    description: "os.popen with f-string interpolation of user input"
+    sink: "os.popen"
+    source: "path parameter"
+
+  - file: "command_injection.py"
+    line: 23
+    cwe_id: "CWE-78"
+    label: true_positive
+    description: "subprocess.Popen with shell=True and user-controlled argument"
+    sink: "subprocess.Popen"
+    source: "cmd parameter"

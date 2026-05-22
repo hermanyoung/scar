@@ -1,0 +1,386 @@
+# Canonical CWE registry for security-review.
+# Single source of truth: each CWE declares HOW it is detected.
+#
+# Fields:
+#   name        - Official CWE title
+#   detection   - How this CWE is checked:
+#                   sast       = OpenGrep/Bandit/gitleaks pattern rules (Pass 2)
+#                   llm        = LLM agent check (Pass 4)
+#                   sast+llm   = Pattern rules catch obvious cases, LLM catches subtle ones
+#                   tool       = External tool (pip-audit, dotnet-vuln)
+#   file_types  - Which files the LLM check should read (for detection=llm|sast+llm)
+#   check       - Focused prompt for the LLM agent (one CWE, one question)
+
+"22":
+  name: "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+  detection: sast+llm
+  file_types: [controller, route, file_handler]
+  check: |
+    Check whether file paths constructed from user input are validated before use.
+    Look for open(), Path(), shutil operations where the path includes request parameters,
+    query args, or form data without os.path.realpath() + base directory containment check.
+    SAST already flags direct concatenation — focus on cases where the path is built
+    indirectly (e.g. via a variable, config lookup, or database value).
+
+"78":
+  name: "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+  detection: sast
+
+"79":
+  name: "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+  detection: sast+llm
+  file_types: [template, view, controller]
+  check: |
+    Check for user input rendered in HTML without escaping. Look for mark_safe(),
+    |safe filter, render_template_string() with user input, Html.Raw() with user data,
+    or JavaScript string interpolation from server-side variables.
+    SAST catches direct mark_safe() — focus on indirect paths where user data flows
+    through a variable before reaching the template.
+
+"89":
+  name: "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+  detection: sast+llm
+  file_types: [model, repository, service, controller]
+  check: |
+    Check for SQL queries built with string formatting or concatenation using user input.
+    Look for ORM bypass patterns: Django raw(), extra(), RawSQL(); SQLAlchemy text() with
+    f-strings; EF Core FromSqlRaw() with interpolation; Dapper Query() with string concat.
+    SAST catches direct cases — focus on indirect flows where user input passes through
+    a service layer before reaching a query.
+
+"90":
+  name: "Improper Neutralization of Special Elements used in an LDAP Query ('LDAP Injection')"
+  detection: llm
+  file_types: [auth, service]
+  check: |
+    Check for LDAP queries constructed with string formatting using user input.
+    Look for ldap.search_s(), ldap3 Connection.search(), or DirectorySearcher.Filter
+    with unescaped user input. Verify that ldap.filter.escape_filter_chars() or
+    equivalent escaping is applied before any user data enters an LDAP filter string.
+
+"94":
+  name: "Improper Control of Generation of Code ('Code Injection')"
+  detection: sast
+
+"116":
+  name: "Improper Encoding or Escaping of Output"
+  detection: llm
+  file_types: [view, template, controller, api]
+  check: |
+    Check for output encoding issues beyond XSS. Look for:
+    1. User-controlled data (PII, names, form input) concatenated into LLM/AI prompts
+       without sanitization or escaping — this enables prompt injection attacks.
+    2. User data inserted into HTTP headers without encoding (header injection).
+    3. User data in XML without entity encoding.
+    4. User data in JSON responses without proper serialization.
+    5. User data in log format strings that could cause log injection.
+    6. User data in SQL, LDAP, or shell command strings without parameterization
+       (if not already caught by SAST).
+
+"200":
+  name: "Exposure of Sensitive Information to an Unauthorized Actor"
+  detection: llm
+  file_types: [controller, api, error_handler, view]
+  check: |
+    Check for endpoints that return sensitive data without authorization checks.
+    Look for API responses that include internal IDs, email addresses, phone numbers,
+    or other PII without verifying the requester has permission to see it.
+    Check whether error responses include internal paths, database names, or
+    stack traces. Check whether API listing endpoints return all records without
+    filtering by the current user's permissions.
+
+"209":
+  name: "Generation of Error Message Containing Sensitive Information"
+  detection: llm
+  file_types: [error_handler, middleware, controller]
+  check: |
+    Check for error handlers that expose internal details to clients.
+    Look for BOTH explicit leaks AND missing error handling:
+    1. Returning ex.ToString(), ex.StackTrace, or ex.Message directly in HTTP responses.
+    2. Returning database connection strings or query text in error responses.
+    3. UseDeveloperExceptionPage() outside env.IsDevelopment().
+    4. Controller actions that call external services (HTTP clients, third-party SDKs,
+       AI/ML APIs) or perform multi-step operations WITHOUT try/catch — an unhandled
+       exception propagates through default middleware and may expose stack traces,
+       connection strings, or service error details in the HTTP response.
+    SAST catches DEBUG=True — focus on custom error handlers and missing exception handling.
+
+"215":
+  name: "Insertion of Sensitive Information Into Debugging Code"
+  detection: sast
+
+"250":
+  name: "Execution with Unnecessary Privileges"
+  detection: llm
+  file_types: [dockerfile, config, startup]
+  check: |
+    Check for processes running with elevated privileges unnecessarily.
+    Look for: Dockerfiles without USER directive (runs as root), services binding
+    to privileged ports (<1024) without justification, code that calls
+    os.setuid(0) or runs with CAP_SYS_ADMIN, ASP.NET apps running as
+    LocalSystem instead of a service account.
+
+"276":
+  name: "Incorrect Default Permissions"
+  detection: llm
+  file_types: [config, startup, file_handler]
+  check: |
+    Check for files or directories created with overly permissive permissions.
+    Look for: os.chmod(path, 0o777), os.makedirs() without explicit mode,
+    File.Create() without restricting ACLs, temp files created in world-readable
+    locations without restrictive permissions, umask(0) calls.
+
+"295":
+  name: "Improper Certificate Validation"
+  detection: sast
+
+"311":
+  name: "Missing Encryption of Sensitive Data"
+  detection: llm
+  file_types: [model, service, config]
+  check: |
+    Check for sensitive data stored or transmitted without encryption.
+    Look for: passwords stored in plaintext (not hashed with bcrypt/argon2/PBKDF2),
+    PII fields in database models without column-level encryption, API tokens
+    stored in plaintext in config files or databases, sensitive data in
+    unencrypted cookies or local storage.
+
+"312":
+  name: "Cleartext Storage of Sensitive Information"
+  detection: llm
+  file_types: [model, repository, config]
+  check: |
+    Check for sensitive information stored without encryption or hashing.
+    Look for: password fields stored as plain strings (not using PasswordHasher
+    or bcrypt), API keys stored in database columns without encryption,
+    credit card numbers or SSNs in plaintext fields, sensitive data written
+    to log files without redaction.
+
+"319":
+  name: "Cleartext Transmission of Sensitive Information"
+  detection: llm
+  file_types: [config, startup, service]
+  check: |
+    Check for sensitive data transmitted over unencrypted channels.
+    Look for:
+    1. URL construction where the scheme is not validated or enforced as HTTPS —
+       e.g. string concatenation building a URL from user input without checking
+       for "https://", or new Uri(userString) without scheme validation.
+    2. HttpClient usage with BaseAddress set to http:// instead of https://.
+    3. Hardcoded http:// literals in code that transmit sensitive data or credentials.
+    4. API calls carrying auth tokens over HTTP (not HTTPS).
+    5. SMTP connections without STARTTLS, Redis/database without TLS in production.
+    6. WebSocket ws:// instead of wss:// for authenticated sessions.
+    7. Configuration values specifying HTTP endpoints for APIs handling credentials or PII.
+
+"326":
+  name: "Inadequate Encryption Strength"
+  detection: llm
+  file_types: [crypto, service, config]
+  check: |
+    Check for encryption with insufficient key sizes or strength.
+    Look for: RSA keys shorter than 2048 bits, AES keys shorter than 256 bits,
+    ECDSA curves weaker than P-256, PBKDF2 with fewer than 100,000 iterations,
+    bcrypt with cost factor below 12. Check that key generation uses
+    cryptographically secure random sources.
+
+"327":
+  name: "Use of a Broken or Risky Cryptographic Algorithm"
+  detection: sast
+
+"328":
+  name: "Use of Weak Hash"
+  detection: sast  # Covered by CWE-327 rules
+
+"330":
+  name: "Use of Insufficiently Random Values"
+  detection: sast
+
+"338":
+  name: "Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)"
+  detection: sast  # Covered by CWE-330 rules
+
+"346":
+  name: "Origin Validation Error"
+  detection: llm
+  file_types: [middleware, controller, config]
+  check: |
+    Check for missing or insufficient origin validation in cross-origin scenarios.
+    Look for: WebSocket endpoints that do not validate the Origin header,
+    postMessage handlers that do not check event.origin, CORS configurations
+    that reflect the request Origin header without allowlist validation,
+    OAuth redirect_uri validation that uses startsWith instead of exact match.
+
+"352":
+  name: "Cross-Site Request Forgery (CSRF)"
+  detection: sast
+
+"377":
+  name: "Insecure Temporary File"
+  detection: llm
+  file_types: [service, file_handler]
+  check: |
+    Check for insecure temporary file creation. Look for: tempfile.mktemp()
+    (race condition — use tempfile.mkstemp() or NamedTemporaryFile instead),
+    writing to /tmp with predictable filenames, Path.GetTempFileName() without
+    setting restrictive permissions, temporary files not cleaned up after use
+    (may leak sensitive data).
+
+"400":
+  name: "Uncontrolled Resource Consumption"
+  detection: llm
+  file_types: [controller, api, service]
+  check: |
+    Check for endpoints vulnerable to resource exhaustion. Look for:
+    file upload endpoints without size limits, API endpoints that accept
+    unbounded list/array inputs, regex patterns vulnerable to ReDoS
+    (catastrophic backtracking), database queries without LIMIT clauses
+    on user-controlled list endpoints, recursive operations without depth limits.
+
+"434":
+  name: "Unrestricted Upload of File with Dangerous Type"
+  detection: llm
+  file_types: [controller, api, file_handler]
+  check: |
+    Check for file upload endpoints that do not validate file type, size, or content.
+    Look for: endpoints that accept any Content-Type without validation,
+    file extension checks that can be bypassed (e.g. checking only the last extension),
+    uploaded files stored in web-accessible directories without renaming,
+    missing antivirus/content scanning on uploads, uploaded files executed server-side.
+
+"502":
+  name: "Deserialization of Untrusted Data"
+  detection: sast+llm
+  file_types: [api, service, message_handler]
+  check: |
+    Trace data flow to deserialization sinks. SAST catches direct pickle.loads()
+    and BinaryFormatter usage — focus on indirect flows where untrusted data
+    (HTTP request body, message queue payload, file upload content) passes through
+    service layers before reaching a deserializer. Check whether JsonConvert with
+    TypeNameHandling has a SerializationBinder whitelist.
+
+"521":
+  name: "Weak Password Requirements"
+  detection: llm
+  file_types: [auth, config, model]
+  check: |
+    Check for weak or missing password policy enforcement. Look for:
+    password fields without minimum length validation (should be >= 8, prefer >= 12),
+    no complexity requirements, no check against common password lists,
+    PasswordValidator in ASP.NET with RequiredLength < 8 or RequireNonAlphanumeric=false,
+    Django AUTH_PASSWORD_VALIDATORS missing or incomplete.
+
+"522":
+  name: "Insufficiently Protected Credentials"
+  detection: llm
+  file_types: [auth, config, service]
+  check: |
+    Check for credentials that are not adequately protected in transit or storage.
+    Look for: login forms submitted over HTTP, password reset tokens without expiry,
+    API keys transmitted in URL query parameters (logged by proxies/servers),
+    credentials stored in browser localStorage instead of httpOnly cookies,
+    remember-me tokens that do not rotate after password change.
+
+"532":
+  name: "Insertion of Sensitive Information into Log File"
+  detection: sast
+
+"601":
+  name: "URL Redirection to Untrusted Site ('Open Redirect')"
+  detection: sast
+
+"611":
+  name: "Improper Restriction of XML External Entity Reference"
+  detection: sast
+
+"614":
+  name: "Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"
+  detection: sast
+
+"668":
+  name: "Exposure of Resource to Wrong Sphere"
+  detection: llm
+  file_types: [config, controller, startup]
+  check: |
+    Check for internal resources exposed to external access. Look for:
+    admin/debug endpoints accessible without authentication, internal service
+    endpoints exposed on public interfaces, database management ports bound
+    to 0.0.0.0 instead of localhost, health check endpoints that expose
+    sensitive system details (dependency versions, internal hostnames).
+
+"693":
+  name: "Protection Mechanism Failure"
+  detection: llm
+  file_types: [middleware, config, startup]
+  check: |
+    Check for disabled or bypassed security mechanisms. Look for:
+    CSRF protection disabled on state-changing endpoints without justification,
+    authentication middleware that can be bypassed via specific headers or paths,
+    rate limiting configured but not applied to sensitive endpoints,
+    security headers (HSTS, X-Content-Type-Options, X-Frame-Options) missing
+    from response middleware configuration.
+
+"732":
+  name: "Incorrect Permission Assignment for Critical Resource"
+  detection: llm
+  file_types: [config, startup, file_handler]
+  check: |
+    Check for critical resources with overly permissive access controls.
+    Look for: configuration files readable by all users, log directories
+    with world-write permissions, private keys or certificates without
+    restrictive file permissions, database files in web-accessible directories,
+    cloud storage buckets with public read/write ACLs.
+
+"798":
+  name: "Use of Hard-coded Credentials"
+  detection: sast
+
+"862":
+  name: "Missing Authorization"
+  detection: llm
+  file_types: [controller, route, middleware]
+  check: |
+    Check whether state-changing endpoints (POST, PUT, DELETE) have explicit
+    authorization enforcement. Read each controller and route file. Verify
+    presence of auth decorators/attributes:
+    - Python Django: @login_required, @permission_required, LoginRequiredMixin
+    - Python Flask: @login_required or custom auth decorator
+    - Python FastAPI: Depends() with auth dependency
+    - C# ASP.NET: [Authorize], [Authorize(Roles=...)], RequireAuthorization()
+    Flag endpoints that modify data without any of these. Do NOT flag endpoints
+    that are intentionally public (health checks, login, registration, public APIs)
+    unless the endpoint modifies sensitive data.
+
+"863":
+  name: "Incorrect Authorization"
+  detection: llm
+  file_types: [controller, repository, service]
+  check: |
+    Check for authorization checks that are present but incorrect (IDOR).
+    Look for database queries that fetch records by user-supplied ID without
+    an ownership filter:
+    - dbContext.Entity.Find(id) without .Where(e => e.UserId == currentUser)
+    - Model.objects.get(pk=id) without filtering by request.user
+    - SELECT ... WHERE id = ? without AND user_id = ?
+    The key question: can User A access User B's data by changing an ID
+    in the URL or request body?
+
+"918":
+  name: "Server-Side Request Forgery (SSRF)"
+  detection: sast
+
+"942":
+  name: "Permissive Cross-domain Policy with Untrusted Domains"
+  detection: sast
+
+"1004":
+  name: "Sensitive Cookie Without 'HttpOnly' Flag"
+  detection: sast  # Covered by CWE-614 rules
+
+"1275":
+  name: "Sensitive Cookie with Improper SameSite Attribute"
+  detection: sast  # Covered by CWE-614 rules
+
+"1395":
+  name: "Dependency on Vulnerable Third-Party Component"
+  detection: tool  # pip-audit, dotnet-vuln

@@ -1,0 +1,3 @@
+cwe: "116"
+expect: not_found
+notes: "Secure — input sanitised, system/user prompt separation, data delimiters"

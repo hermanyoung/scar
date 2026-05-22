@@ -1,0 +1,18 @@
+# DEPRECATED: Use trivy instead (covers .NET + Python + npm/pnpm in one tool).
+# Kept as fallback for environments where trivy is not installed.
+# trivy reads .deps.json/lock files directly; dotnet list requires the .NET SDK
+# and may trigger a restore. If the target hasn't been built, dotnet list
+# discovers more packages than trivy.
+name: dotnet-vuln
+binary: dotnet
+version_cmd: ["dotnet", "--version"]
+output_format: json
+sarif_native: false
+success_exit_codes: [0, 1]
+arg_template: ["{binary}", "list", "{target_path}", "package", "--vulnerable", "--include-transitive", "--format", "json"]
+output_capture: stdout
+timeout_seconds: 180
+target_type: directory
+applies_to: ["*.sln", "*.csproj"]
+cwe_source: mapping_file
+optional: true

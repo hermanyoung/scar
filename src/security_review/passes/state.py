@@ -1,0 +1,79 @@
+"""PipelineState: mutable dataclass carrying inter-pass state.
+
+Extracted to its own module so pass functions can import PipelineState
+without circular dependencies (each pass no longer needs to defer-import
+from pipeline.py).
+"""
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from uuid import uuid4
+
+from security_review.budget import CostTracker
+from security_review.config_schema import SecurityReviewConfig
+from security_review.evidence import EvidenceManifest
+from security_review.models.config_review import ConfigReviewResult
+from security_review.models.coverage import CoverageReport
+from security_review.models.findings import HolisticReviewResult, TriageResult
+from security_review.reporting.common import ReportData
+from security_review.models.inventory import FileManifest
+from security_review.models.report import ToolResult
+from security_review.sarif.types import SarifDocument
+
+# Progress callback type: (pass_number, pass_name, status, detail)
+ProgressCallback = Callable[[int, str, str, str], None]
+
+
+def _noop_progress(pass_number: int, pass_name: str, status: str, detail: str) -> None:
+    """Default no-op progress callback."""
+
+
+@dataclass
+class PipelineState:
+    """Carries inter-pass state through the 5-pass pipeline.
+
+    Created by cli.py, passed to each pass function, mutated in place.
+    """
+
+    config: SecurityReviewConfig
+    target_path: Path
+    work_dir: Path
+
+    # Pass 1 outputs
+    manifest: FileManifest | None = None
+    coverage: CoverageReport | None = None
+
+    # Pass 2 outputs
+    sast_sarif: SarifDocument | None = None
+    tool_results: list[ToolResult] = field(default_factory=list)
+
+    # Pass 3 outputs
+    triage_result: TriageResult | None = None
+
+    # Pass 4 outputs
+    holistic_result: HolisticReviewResult | None = None
+
+    # Pass 5 outputs
+    config_review_result: ConfigReviewResult | None = None
+
+    # Cross-cutting
+    run_id: str = field(default_factory=lambda: uuid4().hex[:12])
+    cost_tracker: CostTracker = field(default_factory=CostTracker)
+    evidence: EvidenceManifest = field(default_factory=EvidenceManifest)
+
+    # Progress reporting
+    on_progress: ProgressCallback = field(default=_noop_progress)
+
+    # Reporting (set by CLI, consumed by merge pass)
+    report_formats: list[str] = field(default_factory=lambda: ["summary"])
+    report_data: ReportData | None = None
+
+    # Tracing (--trace flag)
+    trace_enabled: bool = False
+
+    @property
+    def output_dir(self) -> Path:
+        """The output directory for this run (where SARIF, reports, and traces go)."""
+        return (self.work_dir / self.config.review.output_sarif).parent

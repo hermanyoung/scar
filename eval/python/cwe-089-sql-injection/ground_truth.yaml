@@ -1,0 +1,28 @@
+cwe: "089"
+language: python
+description: "SQL injection via string formatting in sqlite3 and Django ORM"
+
+findings:
+  - file: "sql_injection.py"
+    line: 10
+    cwe_id: "CWE-89"
+    label: true_positive
+    description: "sqlite3 cursor.execute with f-string interpolation"
+    sink: "cursor.execute"
+    source: "user_input parameter"
+
+  - file: "sql_injection.py"
+    line: 15
+    cwe_id: "CWE-89"
+    label: true_positive
+    description: "Django objects.raw() with f-string interpolation"
+    sink: "objects.raw"
+    source: "name parameter"
+
+  - file: "sql_injection.py"
+    line: 21
+    cwe_id: "CWE-89"
+    label: true_positive
+    description: "Django cursor.execute with f-string interpolation"
+    sink: "cursor.execute"
+    source: "user_id parameter"

@@ -1,0 +1,33 @@
+rules:
+  - id: python.django.security.cwe-614.insecure-cookie
+    patterns:
+      - pattern-either:
+          - pattern: $RESPONSE.set_cookie(..., secure=False, ...)
+          - pattern: $RESPONSE.set_cookie(..., httponly=False, ...)
+          - pattern: $RESPONSE.set_signed_cookie(..., secure=False, ...)
+          - pattern: $RESPONSE.set_signed_cookie(..., httponly=False, ...)
+          - pattern: |
+              SESSION_COOKIE_SECURE = False
+          - pattern: |
+              SESSION_COOKIE_HTTPONLY = False
+          - pattern: |
+              CSRF_COOKIE_SECURE = False
+    message: >
+      Cookie set without Secure and/or HttpOnly flags. Without Secure, the
+      cookie is sent over unencrypted HTTP, exposing it to network sniffing.
+      Without HttpOnly, JavaScript can read the cookie, enabling XSS-based
+      session theft. Set secure=True and httponly=True on all sensitive cookies.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"
+        - "CWE-1004: Sensitive Cookie Without 'HttpOnly' Flag"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: HIGH
+      impact: MEDIUM
+      category: security
+      technology:
+        - python
+        - django

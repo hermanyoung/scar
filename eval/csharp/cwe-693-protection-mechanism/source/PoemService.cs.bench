@@ -1,0 +1,6 @@
+cwe: "693"
+expect: found
+severity: MEDIUM
+evidence_contains:
+  - "rate limit"
+notes: "Protection mechanism failure — no rate limiting on external AI call"

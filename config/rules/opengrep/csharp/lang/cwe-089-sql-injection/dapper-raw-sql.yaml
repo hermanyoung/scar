@@ -1,0 +1,43 @@
+rules:
+  - id: csharp.lang.security.cwe-089.dapper-raw-sql
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CONN.Query($"...", ...)
+          - pattern: |
+              $CONN.Query("..." + $X + "...", ...)
+          - pattern: |
+              $CONN.QueryAsync($"...", ...)
+          - pattern: |
+              $CONN.QueryAsync("..." + $X + "...", ...)
+          - pattern: |
+              $CONN.Execute($"...", ...)
+          - pattern: |
+              $CONN.Execute("..." + $X + "...", ...)
+          - pattern: |
+              $CONN.ExecuteAsync($"...", ...)
+          - pattern: |
+              $CONN.ExecuteAsync("..." + $X + "...", ...)
+          - pattern: |
+              $CONN.QueryFirstOrDefault($"...", ...)
+          - pattern: |
+              $CONN.QueryFirstOrDefault("..." + $X + "...", ...)
+    message: >
+      Dapper query constructed via string concatenation or interpolation.
+      Use parameterised queries with anonymous objects instead.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+        - dapper
+    fix: |
+      Use parameterised queries:
+        conn.Query("SELECT * FROM Users WHERE Name = @Name", new { Name = userInput });

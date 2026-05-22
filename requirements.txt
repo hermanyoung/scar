@@ -1,0 +1,30 @@
+# Security Code Review Module — Python dependencies
+# Install: pip install -r requirements.txt
+
+# Core
+pydantic>=2.7
+pydantic-settings>=2.7
+pyyaml>=6.0
+click>=8.0
+structlog>=24.0
+rich>=13.0
+
+# Code intelligence (C# AST parsing)
+tree-sitter>=0.23
+tree-sitter-c-sharp>=0.23
+
+# LLM orchestration (PydanticAI + providers)
+pydantic-ai[openai,anthropic]>=0.2.14
+
+# Provider SDKs (pin to tested versions — breaking changes between minors)
+# NOTE: 0.3.0 has a regression — CWE-312/522 return 0 findings (prompt truncation suspected)
+github-copilot-sdk==0.2.2
+claude-agent-sdk>=0.1.63
+json-repair>=0.30
+
+# SAST tools (Python security linter)
+bandit[sarif]>=1.9.4
+
+# Testing
+pytest>=8.0
+pytest-asyncio>=0.24

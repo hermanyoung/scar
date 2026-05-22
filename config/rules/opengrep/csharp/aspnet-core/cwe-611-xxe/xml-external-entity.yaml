@@ -1,0 +1,23 @@
+rules:
+  - id: csharp.aspnet-core.security.cwe-611.xml-external-entity
+    patterns:
+      - pattern-either:
+          - pattern: $READER.DtdProcessing = DtdProcessing.Parse
+          - pattern: $READER.ProhibitDtd = false
+          - pattern: $DOC.XmlResolver = new XmlUrlResolver()
+    message: >
+      XML parser configured to process DTDs or resolve external entities.
+      This can lead to XXE attacks enabling file disclosure, SSRF, or denial of service.
+      Set DtdProcessing = DtdProcessing.Prohibit and XmlResolver = null.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-611: Improper Restriction of XML External Entity Reference"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - .net

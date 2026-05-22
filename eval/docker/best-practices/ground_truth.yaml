@@ -1,0 +1,27 @@
+# Ground truth for Dockerfile best-practice violations.
+
+cwe: "misc"
+language: docker
+description: "Dockerfile with multiple security best-practice violations"
+
+findings:
+  - file: "Dockerfile"
+    line: 4
+    cwe_id: "CWE-829"
+    label: true_positive
+    description: "Using :latest tag — mutable, unpredictable base image"
+    sink: "FROM ubuntu:latest"
+
+  - file: "Dockerfile"
+    line: 10
+    cwe_id: "CWE-78"
+    label: true_positive
+    description: "curl piped to bash without hash verification"
+    sink: "bash"
+    source: "curl -fsSL https://example.com/install.sh"
+
+  - file: "Dockerfile"
+    line: 1
+    cwe_id: "CWE-250"
+    label: true_positive
+    description: "No USER directive — container runs as root"

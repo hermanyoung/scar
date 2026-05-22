@@ -1,0 +1,26 @@
+# Ground truth: no IDOR findings expected.
+# Admin controller with [Authorize(Roles="Admin")] has intentionally
+# unscoped access — admin users should be able to manage all resources.
+
+cwe: "863"
+language: csharp
+description: "Admin controller with intentionally unscoped access"
+
+findings:
+  - file: "AdminController.cs"
+    line: 22
+    cwe_id: "CWE-863"
+    label: false_positive
+    description: "Admin endpoint with [Authorize(Roles='Admin')] — unscoped access is intentional"
+
+  - file: "AdminController.cs"
+    line: 30
+    cwe_id: "CWE-863"
+    label: false_positive
+    description: "Admin GET by ID — intentionally unscoped for admin management"
+
+  - file: "AdminController.cs"
+    line: 39
+    cwe_id: "CWE-863"
+    label: false_positive
+    description: "Admin DELETE — intentionally unscoped for admin management"

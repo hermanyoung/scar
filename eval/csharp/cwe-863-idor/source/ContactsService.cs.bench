@@ -1,0 +1,6 @@
+cwe: "863"
+expect: found
+severity: MEDIUM
+evidence_contains:
+  - "GetContacts"
+notes: "IDOR — service returns all contacts without user filter"

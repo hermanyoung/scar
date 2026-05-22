@@ -1,0 +1,32 @@
+rules:
+  - id: python.lang.security.cwe-918.ssrf-user-url
+    patterns:
+      - pattern-either:
+          - pattern: requests.get($USER_URL, ...)
+          - pattern: requests.post($USER_URL, ...)
+          - pattern: requests.put($USER_URL, ...)
+          - pattern: requests.request(..., $USER_URL, ...)
+          - pattern: httpx.get($USER_URL, ...)
+          - pattern: httpx.post($USER_URL, ...)
+          - pattern: urllib.request.urlopen($USER_URL, ...)
+          - pattern: urllib.request.urlretrieve($USER_URL, ...)
+          - pattern: $CLIENT.get($USER_URL, ...)
+          - pattern: $CLIENT.post($USER_URL, ...)
+          - pattern: $CLIENT.fetch($USER_URL, ...)
+    message: >
+      HTTP request to a URL that may be user-controlled. If an attacker can
+      control the URL, they can make the server request internal services
+      (SSRF). Validate URLs against an allowlist of permitted hosts and
+      schemes before making requests.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-918: Server-Side Request Forgery (SSRF)"
+      owasp:
+        - "A10:2021 - Server-Side Request Forgery (SSRF)"
+      confidence: LOW
+      impact: HIGH
+      category: security
+      technology:
+        - python

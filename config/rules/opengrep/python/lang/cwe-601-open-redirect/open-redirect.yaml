@@ -1,0 +1,34 @@
+rules:
+  - id: python.lang.security.cwe-601.open-redirect
+    patterns:
+      - pattern-either:
+          - pattern: redirect($USER_INPUT)
+          - pattern: redirect(request.args.get(...))
+          - pattern: redirect(request.form.get(...))
+          - pattern: redirect(request.GET.get(...))
+          - pattern: redirect(request.POST.get(...))
+          - pattern: HttpResponseRedirect($USER_INPUT)
+          - pattern: HttpResponseRedirect(request.GET.get(...))
+          - pattern: HttpResponseRedirect(request.POST.get(...))
+          - pattern: RedirectResponse(url=$USER_INPUT)
+          - pattern: RedirectResponse(request.query_params.get(...))
+    message: >
+      Redirect to a URL from user input without validation. An attacker can
+      craft a URL that redirects users to a malicious site (phishing). Validate
+      redirect targets against an allowlist of permitted domains, or use only
+      relative paths.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - python
+        - django
+        - flask
+        - fastapi

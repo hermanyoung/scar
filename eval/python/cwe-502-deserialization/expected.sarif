@@ -1,0 +1,37 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": { "name": "opengrep", "rules": [] }
+      },
+      "results": [
+        {
+          "ruleId": "python.lang.security.cwe-502.unsafe-deserialization",
+          "level": "error",
+          "message": { "text": "pickle.loads on untrusted data" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "deserialization.py" }, "region": { "startLine": 8 } } }]
+        },
+        {
+          "ruleId": "python.lang.security.cwe-502.unsafe-deserialization",
+          "level": "error",
+          "message": { "text": "yaml.load with unsafe Loader" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "deserialization.py" }, "region": { "startLine": 13 } } }]
+        },
+        {
+          "ruleId": "python.lang.security.cwe-502.yaml-unsafe-load",
+          "level": "error",
+          "message": { "text": "yaml.load() called without SafeLoader" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "deserialization.py" }, "region": { "startLine": 13 } } }]
+        },
+        {
+          "ruleId": "python.lang.security.cwe-502.unsafe-deserialization",
+          "level": "error",
+          "message": { "text": "pickle.load from file" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "deserialization.py" }, "region": { "startLine": 19 } } }]
+        }
+      ]
+    }
+  ]
+}

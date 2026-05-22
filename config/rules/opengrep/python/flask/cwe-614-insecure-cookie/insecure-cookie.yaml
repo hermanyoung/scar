@@ -1,0 +1,29 @@
+rules:
+  - id: python.flask.security.cwe-614.insecure-cookie
+    patterns:
+      - pattern-either:
+          - pattern: $RESPONSE.set_cookie(..., secure=False, ...)
+          - pattern: $RESPONSE.set_cookie(..., httponly=False, ...)
+          - pattern: |
+              SESSION_COOKIE_SECURE = False
+          - pattern: |
+              SESSION_COOKIE_HTTPONLY = False
+    message: >
+      Cookie set without Secure and/or HttpOnly flags. Without Secure, the
+      cookie is sent over unencrypted HTTP. Without HttpOnly, JavaScript can
+      read the cookie. Set secure=True and httponly=True on all sensitive
+      cookies, and configure SESSION_COOKIE_SECURE=True in Flask config.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"
+        - "CWE-1004: Sensitive Cookie Without 'HttpOnly' Flag"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: HIGH
+      impact: MEDIUM
+      category: security
+      technology:
+        - python
+        - flask

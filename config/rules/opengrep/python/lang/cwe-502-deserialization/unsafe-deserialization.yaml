@@ -1,0 +1,47 @@
+rules:
+  - id: python.lang.security.cwe-502.unsafe-deserialization
+    patterns:
+      - pattern-either:
+          - pattern: pickle.loads(...)
+          - pattern: pickle.load(...)
+          - pattern: _pickle.loads(...)
+          - pattern: shelve.open(...)
+          - pattern: marshal.loads(...)
+          - pattern: marshal.load(...)
+          - pattern: jsonpickle.decode(...)
+          - pattern: yaml.load(..., Loader=yaml.Loader)
+          - pattern: yaml.load(..., Loader=yaml.UnsafeLoader)
+          - pattern: yaml.unsafe_load(...)
+    message: >
+      Deserialization of untrusted data using an insecure deserialiser. pickle, marshal,
+      shelve, jsonpickle, and yaml.load with unsafe Loader can execute arbitrary code.
+      Use json, yaml.safe_load(), or msgpack for untrusted data.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-502: Deserialization of Untrusted Data"
+      owasp:
+        - "A08:2021 - Software and Data Integrity Failures"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - python
+
+  - id: python.lang.security.cwe-502.yaml-unsafe-load
+    patterns:
+      - pattern: yaml.load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader)
+      - pattern-not: yaml.load(..., Loader=yaml.CSafeLoader)
+    message: >
+      yaml.load() called without SafeLoader. This can execute arbitrary Python objects.
+      Use yaml.safe_load() or yaml.load(..., Loader=yaml.SafeLoader).
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-502: Deserialization of Untrusted Data"
+      confidence: HIGH
+      impact: HIGH
+      category: security

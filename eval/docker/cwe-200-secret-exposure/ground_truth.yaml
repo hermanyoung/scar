@@ -1,0 +1,22 @@
+# Ground truth for CWE-200: Docker ARG→ENV secret exposure.
+
+cwe: "200"
+language: docker
+description: "Build secret persisted in Docker image layer via ARG→ENV"
+
+findings:
+  - file: "Dockerfile"
+    line: 14
+    cwe_id: "CWE-200"
+    label: true_positive
+    description: "FEED_ACCESSTOKEN build argument persisted as ENV in image layer"
+    sink: "ENV VSS_NUGET_EXTERNAL_FEED_ENDPOINTS"
+    source: "ARG FEED_ACCESSTOKEN"
+
+  - file: "Dockerfile"
+    line: 11
+    cwe_id: "CWE-78"
+    label: true_positive
+    description: "curl piped to sh without hash verification"
+    sink: "sh"
+    source: "curl -L https://raw.githubusercontent.com/..."

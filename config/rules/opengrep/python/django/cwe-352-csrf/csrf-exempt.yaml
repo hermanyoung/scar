@@ -1,0 +1,23 @@
+rules:
+  - id: python.django.security.cwe-352.csrf-exempt
+    pattern: |
+      @csrf_exempt
+      def $FUNC(...):
+          ...
+    message: >
+      Django view decorated with @csrf_exempt. This disables CSRF protection on
+      this endpoint. Only exempt views that genuinely cannot use CSRF tokens
+      (e.g. API endpoints with token auth). Document the reason for exemption.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-352: Cross-Site Request Forgery (CSRF)"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: HIGH
+      impact: MEDIUM
+      category: security
+      technology:
+        - python
+        - django

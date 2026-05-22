@@ -1,0 +1,12 @@
+# Ground truth for false-positives corpus entry.
+#
+# Every function in this file is SAFE. A correct model should report
+# zero findings. Any finding reported here is a false positive.
+
+cwe: "all"
+language: python
+description: "Secure Python code — zero true findings expected"
+
+findings: []
+# Empty list = the model should find nothing.
+# Any finding the model reports against these files is a false positive.

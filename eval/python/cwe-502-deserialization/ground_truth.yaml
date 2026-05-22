@@ -1,0 +1,28 @@
+cwe: "502"
+language: python
+description: "Insecure deserialization via pickle and yaml"
+
+findings:
+  - file: "deserialization.py"
+    line: 7
+    cwe_id: "CWE-502"
+    label: true_positive
+    description: "pickle.loads on untrusted data"
+    sink: "pickle.loads"
+    source: "data parameter"
+
+  - file: "deserialization.py"
+    line: 12
+    cwe_id: "CWE-502"
+    label: true_positive
+    description: "yaml.load with unsafe Loader"
+    sink: "yaml.load"
+    source: "content parameter"
+
+  - file: "deserialization.py"
+    line: 17
+    cwe_id: "CWE-502"
+    label: true_positive
+    description: "pickle.load from file"
+    sink: "pickle.load"
+    source: "file path parameter"

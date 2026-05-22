@@ -1,0 +1,36 @@
+rules:
+  - id: python.lang.security.cwe-532.sensitive-logging
+    patterns:
+      - pattern-either:
+          - pattern: logger.$METHOD(..., password=..., ...)
+          - pattern: logger.$METHOD(..., token=..., ...)
+          - pattern: logger.$METHOD(..., secret=..., ...)
+          - pattern: logger.$METHOD(..., api_key=..., ...)
+          - pattern: logger.$METHOD(..., credential=..., ...)
+          - pattern: logger.$METHOD(f"...password...")
+          - pattern: logger.$METHOD(f"...token...")
+          - pattern: logger.$METHOD(f"...secret...")
+          - pattern: logger.$METHOD(f"...api_key...")
+          - pattern: logging.$METHOD(f"...password...")
+          - pattern: logging.$METHOD(f"...token...")
+          - pattern: logging.$METHOD(f"...secret...")
+          - pattern: print(f"...password...")
+          - pattern: print(f"...token...")
+          - pattern: print(f"...secret...")
+    message: >
+      Sensitive data (password, token, secret, API key) is being logged or
+      printed. Log files are often stored in plain text, shared across teams,
+      and aggregated in log management systems. Redact sensitive values before
+      logging, or log only non-sensitive identifiers (user_id, request_id).
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-532: Insertion of Sensitive Information into Log File"
+      owasp:
+        - "A09:2021 - Security Logging and Monitoring Failures"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - python

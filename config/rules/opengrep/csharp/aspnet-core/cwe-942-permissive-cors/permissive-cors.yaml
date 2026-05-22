@@ -1,0 +1,26 @@
+rules:
+  - id: csharp.aspnet.security.cwe-942.permissive-cors
+    patterns:
+      - pattern-either:
+          - pattern: $BUILDER.AllowAnyOrigin()
+          - pattern: $BUILDER.WithOrigins("*")
+          - pattern: $POLICY.AllowAnyOrigin()
+    message: >
+      CORS is configured to allow all origins. This permits any website to
+      make cross-origin requests to your API. Use .WithOrigins() to specify
+      trusted domains explicitly. AllowAnyOrigin() combined with
+      AllowCredentials() is blocked by browsers but the misconfiguration
+      signals a security posture problem.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-942: Permissive Cross-domain Policy with Untrusted Domains"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: HIGH
+      impact: MEDIUM
+      category: security
+      technology:
+        - csharp
+        - aspnet-core

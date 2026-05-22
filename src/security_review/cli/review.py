@@ -1,0 +1,213 @@
+"""CLI command: review — run the security review pipeline."""
+from __future__ import annotations
+
+import asyncio
+import time as _time
+from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
+
+import click
+
+from security_review.cli import PROJECT_ROOT, _setup_logging, cli
+
+
+@cli.command()
+@click.option("--target", required=True, type=click.Path(exists=True),
+              help="Path to codebase root.")
+@click.option("--mode", default="full",
+              type=click.Choice(["full", "sast", "sast-triage"]),
+              help="Pipeline mode.")
+@click.option("--provider", default=None,
+              help="LLM provider:model (e.g. copilot:claude-opus-4.6).")
+@click.option("--budget", type=float, default=None,
+              help="Max LLM spend in USD.")
+@click.option("--output", default=None,
+              help="Output SARIF path (default: var/output/{date}-{target}-{id}/).")
+@click.option("--summary", default=None,
+              help="Output markdown summary path.")
+@click.option("--format", "report_format", default="summary",
+              help="Report format: summary, full, json, csv, all (comma-separated).")
+@click.option("--config", "config_path", default=None,
+              type=click.Path(exists=True),
+              help="Override config YAML path.")
+@click.option("--verbose", "-v", is_flag=True,
+              help="Show batch/tool detail and structlog output.")
+@click.option("--debug", is_flag=True,
+              help="DEBUG-level structlog + full tracebacks.")
+@click.option("--quiet", is_flag=True,
+              help="Errors only — suppress progress.")
+@click.option("--json-logs", is_flag=True,
+              help="JSON log lines to stderr (for CI).")
+@click.option("--no-file-log", is_flag=True,
+              help="Disable file logging.")
+@click.option("--triage-all", is_flag=True,
+              help="Triage LOW findings too (default: only MEDIUM+).")
+@click.option("--trace", is_flag=True,
+              help="Write per-agent trace files to var/output/{run}/traces/.")
+def review(target, mode, provider, budget, output, summary, report_format, config_path,
+           verbose, debug, quiet, json_logs, no_file_log, triage_all, trace):
+    """Run the security review pipeline."""
+    ctx = _setup_logging(verbose, debug, quiet, json_logs, no_file_log)
+    show_detail = ctx["verbose"] or ctx["debug"]
+
+    from security_review.logging import get_logger
+    logger = get_logger(__name__)
+
+    from security_review.config import load_config
+    from security_review.config_schema import SecurityReviewConfig
+
+    cfg = load_config(Path(config_path) if config_path else None)
+
+    # Auto-generate dated output directory with run ID for uniqueness
+    run_id = uuid4().hex[:8]
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    target_name = Path(target).resolve().name
+    safe_name = "".join(c if c.isalnum() or c in "-." else "-" for c in target_name).strip("-")
+    auto_dir = f"var/output/{date_str}-{safe_name}-{run_id}"
+
+    if output is None:
+        output = f"{auto_dir}/security-report.sarif"
+    if summary is None:
+        summary = f"{auto_dir}/security-report.md"
+    triage = str(Path(output).parent / "triage.json")
+
+    # Apply CLI overrides via model_validate (enforces constraints)
+    overrides: dict = {}
+    overrides.setdefault("review", {})["mode"] = mode
+    if provider:
+        overrides.setdefault("llm", {})["provider_model"] = provider
+        overrides.setdefault("llm", {})["triage_model"] = provider
+    if budget is not None:
+        overrides.setdefault("llm", {})["max_budget_usd"] = budget
+    overrides.setdefault("review", {})["output_sarif"] = output
+    overrides.setdefault("review", {})["output_summary"] = summary
+    overrides.setdefault("review", {})["output_triage"] = triage
+    if triage_all:
+        overrides.setdefault("triage", {})["min_score"] = 0.0
+
+    merged = cfg.model_dump()
+    for section, values in overrides.items():
+        merged.setdefault(section, {}).update(values)
+
+    try:
+        cfg = SecurityReviewConfig.model_validate(merged)
+    except Exception as e:
+        click.echo(f"Invalid option: {e}", err=True)
+        raise SystemExit(1)
+
+    target_path = Path(target).resolve()
+    work_dir = PROJECT_ROOT
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
+
+    from security_review.passes.pipeline import PipelineState, run_pipeline
+
+    _pipeline_start = _time.monotonic()
+    _pass_start = _pipeline_start
+
+    def on_progress(pass_number: int, pass_name: str, status: str, detail: str) -> None:
+        nonlocal _pass_start
+        if quiet:
+            return
+        if status == "running":
+            _pass_start = _time.monotonic()
+            click.echo(click.style(f"  [{pass_number}] ", fg="cyan") + detail, nl=False)
+        elif status == "done":
+            pass_elapsed = _time.monotonic() - _pass_start
+            total_elapsed = _time.monotonic() - _pipeline_start
+            click.echo(
+                click.style(" done", fg="green")
+                + f" — {detail}"
+                + click.style(f"  [{int(pass_elapsed)}s / {int(total_elapsed)}s total]", dim=True)
+            )
+        elif status == "counter":
+            click.echo(f"\r      {detail}", nl=False)
+        elif status == "tool":
+            styled = detail
+            if "failed" in detail:
+                styled = click.style(detail, fg="red")
+            elif "skipped" in detail:
+                styled = click.style(detail, dim=True)
+            click.echo(f"\n      {styled}", nl=False)
+        elif status == "detail" and show_detail:
+            click.echo(click.style(f"\n      ", dim=True) + click.style(detail, dim=True), nl=False)
+
+    # Parse report formats
+    if report_format == "all":
+        formats = ["summary", "full", "json", "csv"]
+    else:
+        formats = [f.strip() for f in report_format.split(",")]
+
+    state = PipelineState(
+        config=cfg,
+        target_path=target_path,
+        work_dir=work_dir,
+        run_id=run_id,
+        on_progress=on_progress,
+        report_formats=formats,
+        trace_enabled=trace,
+    )
+
+    effective_provider = provider or cfg.llm.provider_model
+    if not quiet:
+        click.echo(f"\nSCAR — {mode} mode")
+        click.echo(f"  Target:   {target_path}")
+        click.echo(f"  Provider: {effective_provider}")
+        click.echo()
+
+    logger.info("pipeline.starting",
+                target=str(target_path), mode=mode,
+                provider=effective_provider)
+
+    try:
+        sarif_path = asyncio.run(run_pipeline(state))
+        total_elapsed = _time.monotonic() - _pipeline_start
+        logger.info("pipeline.complete", sarif=str(sarif_path))
+        if not quiet:
+            minutes, seconds = divmod(int(total_elapsed), 60)
+            time_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+            click.echo(f"\n  Completed in {time_str}")
+            click.echo(f"  Report: {sarif_path}")
+            for ext_name, ext in [("Summary", ".md"), ("Full", ".md"), ("JSON", ".json"), ("CSV", ".csv")]:
+                p = sarif_path.parent / f"security-report{ext}"
+                if p.exists() and p != sarif_path:
+                    click.echo(f"  {ext_name}: {p}")
+            # Terminal findings display
+            report_data = state.report_data
+            if report_data:
+                from security_review.reporting.terminal import render_terminal
+                render_terminal(report_data)
+            # Code quality summary (AST-only, fast)
+            try:
+                from code_quality import score_project
+                quality_result = score_project(
+                    target=target_path, tools=[], include_graph=False,
+                )
+                if report_data:
+                    from code_quality.scoring import override_security_from_review
+                    override_security_from_review(
+                        quality_result,
+                        urgent=report_data.urgent,
+                        elevated=report_data.elevated,
+                        total=report_data.total,
+                    )
+                from code_quality.display import print_quality_summary
+                print_quality_summary(quality_result)
+            except Exception as quality_err:
+                logger.warning("quality.scoring_failed", error=str(quality_err),
+                               error_type=type(quality_err).__name__)
+        else:
+            click.echo(f"Report: {sarif_path}")
+    except KeyboardInterrupt:
+        logger.warning("pipeline.interrupted")
+        click.echo("\nInterrupted.", err=True)
+        raise SystemExit(130)
+    except Exception as e:
+        logger.error("pipeline.failed", error=str(e), error_type=type(e).__name__)
+        if debug:
+            import traceback
+            traceback.print_exc()
+        else:
+            click.echo(f"\nFailed: {e}", err=True)
+            click.echo("Use --debug for full traceback.", err=True)
+        raise SystemExit(1)

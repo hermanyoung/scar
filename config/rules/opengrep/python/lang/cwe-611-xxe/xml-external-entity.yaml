@@ -1,0 +1,29 @@
+rules:
+  - id: python.lang.security.cwe-611.xml-external-entity
+    patterns:
+      - pattern-either:
+          - pattern: xml.etree.ElementTree.parse($INPUT, ...)
+          - pattern: xml.etree.ElementTree.fromstring($INPUT, ...)
+          - pattern: lxml.etree.parse($INPUT, ...)
+          - pattern: lxml.etree.fromstring($INPUT, ...)
+          - pattern: xml.dom.minidom.parse($INPUT, ...)
+          - pattern: xml.dom.minidom.parseString($INPUT, ...)
+          - pattern: xml.sax.parse($INPUT, ...)
+          - pattern: xml.sax.parseString($INPUT, ...)
+    message: >
+      XML parsing of potentially untrusted input. Python's built-in XML parsers
+      are vulnerable to XXE (XML External Entity) attacks by default. Use
+      defusedxml.ElementTree instead of xml.etree.ElementTree, or disable
+      external entity resolution explicitly.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-611: Improper Restriction of XML External Entity Reference"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - python

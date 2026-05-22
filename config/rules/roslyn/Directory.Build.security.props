@@ -1,0 +1,21 @@
+<Project>
+  <!-- Security-focused Roslyn analyzer configuration.
+       Import this in consumer projects to enable security rules.
+       Usage: <Import Project="path/to/Directory.Build.security.props" /> -->
+
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <!-- Generate SARIF output for the security review pipeline -->
+    <ErrorLog>security-roslyn.sarif,version=2.1</ErrorLog>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- CA2100: Review SQL queries for security vulnerabilities -->
+    <!-- CA2153: Do not catch CorruptedStateExceptions -->
+    <!-- CA3001-CA3012: Input validation vulnerabilities -->
+    <!-- CA5350-CA5405: Cryptography and security rules -->
+    <None Include="$(MSBuildThisFileDirectory)security.editorconfig" Link="security.editorconfig" />
+  </ItemGroup>
+</Project>

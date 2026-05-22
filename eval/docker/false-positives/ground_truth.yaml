@@ -1,0 +1,25 @@
+# Ground truth: no security findings expected.
+# ARG→ENV for build metadata (build number, branch, commit hash) is safe.
+
+cwe: "200"
+language: docker
+description: "Dockerfile using ARG→ENV for non-secret build metadata only"
+
+findings:
+  - file: "Dockerfile"
+    line: 12
+    cwe_id: "CWE-200"
+    label: false_positive
+    description: "ENV APPMETADATABUILDNUMBER — build number is not a secret"
+
+  - file: "Dockerfile"
+    line: 13
+    cwe_id: "CWE-200"
+    label: false_positive
+    description: "ENV APPMETADATABRANCHNAME — branch name is not a secret"
+
+  - file: "Dockerfile"
+    line: 14
+    cwe_id: "CWE-200"
+    label: false_positive
+    description: "ENV APPMETADATACOMMITHASH — commit hash is not a secret"

@@ -1,0 +1,31 @@
+rules:
+  - id: python.lang.security.cwe-215.debug-enabled
+    patterns:
+      - pattern-either:
+          - pattern: DEBUG = True
+          - pattern: app.run(..., debug=True, ...)
+          - pattern: app.debug = True
+          - pattern: FLASK_DEBUG = True
+          - pattern: TEMPLATE_DEBUG = True
+          - pattern: uvicorn.run(..., reload=True, ...)
+    message: >
+      Debug mode is enabled. Debug mode exposes detailed error messages,
+      stack traces, environment variables, and source code to users. This
+      information helps attackers understand the application internals.
+      Disable debug mode in production: set DEBUG=False, remove debug=True
+      from app.run(), and disable hot-reload in uvicorn.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-215: Insertion of Sensitive Information Into Debugging Code"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - python
+        - django
+        - flask
+        - fastapi

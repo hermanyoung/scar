@@ -1,0 +1,33 @@
+rules:
+  - id: csharp.aspnet.security.cwe-614.insecure-cookie
+    patterns:
+      - pattern-either:
+          - pattern: |
+              new CookieOptions { ..., Secure = false, ... }
+          - pattern: |
+              new CookieOptions { ..., HttpOnly = false, ... }
+          - pattern: $OPTIONS.Secure = false
+          - pattern: $OPTIONS.HttpOnly = false
+          - pattern: |
+              options.Cookie.SecurePolicy = CookieSecurePolicy.None
+          - pattern: |
+              options.Cookie.HttpOnly = false
+    message: >
+      Cookie configured without Secure and/or HttpOnly flags. Without Secure,
+      the cookie is transmitted over unencrypted HTTP. Without HttpOnly,
+      client-side JavaScript can access the cookie. Set Secure=true and
+      HttpOnly=true on all authentication and session cookies.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"
+        - "CWE-1004: Sensitive Cookie Without 'HttpOnly' Flag"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: HIGH
+      impact: MEDIUM
+      category: security
+      technology:
+        - csharp
+        - aspnet-core

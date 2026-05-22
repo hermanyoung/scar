@@ -1,0 +1,38 @@
+rules:
+  - id: python.lang.security.cwe-295.disabled-cert-validation
+    patterns:
+      - pattern-either:
+          - pattern: requests.get(..., verify=False, ...)
+          - pattern: requests.post(..., verify=False, ...)
+          - pattern: requests.put(..., verify=False, ...)
+          - pattern: requests.patch(..., verify=False, ...)
+          - pattern: requests.delete(..., verify=False, ...)
+          - pattern: requests.head(..., verify=False, ...)
+          - pattern: requests.request(..., verify=False, ...)
+          - pattern: httpx.Client(..., verify=False, ...)
+          - pattern: httpx.AsyncClient(..., verify=False, ...)
+          - pattern: httpx.get(..., verify=False, ...)
+          - pattern: httpx.post(..., verify=False, ...)
+          - pattern: urllib3.disable_warnings(...)
+          - pattern: ssl._create_unverified_context(...)
+          - pattern: |
+              $CTX = ssl.create_default_context(...)
+              ...
+              $CTX.check_hostname = False
+    message: >
+      TLS certificate verification is disabled. This allows man-in-the-middle
+      attacks where an attacker can intercept and modify traffic. Never disable
+      certificate verification in production. Use verify=True (default) or
+      provide a custom CA bundle via verify="/path/to/ca-bundle.crt".
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-295: Improper Certificate Validation"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - python

@@ -1,0 +1,7 @@
+cwe: "863"
+expect: found
+severity: HIGH
+evidence_contains:
+  - "DeleteContact"
+  - "UpdateContact"
+notes: "IDOR — write operations without ownership check"

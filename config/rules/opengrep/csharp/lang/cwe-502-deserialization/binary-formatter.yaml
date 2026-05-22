@@ -1,0 +1,59 @@
+rules:
+  - id: csharp.lang.security.cwe-502.binary-formatter
+    patterns:
+      - pattern-either:
+          - pattern: |
+              new BinaryFormatter()
+          - pattern: |
+              new NetDataContractSerializer()
+          - pattern: |
+              new LosFormatter()
+          - pattern: |
+              new SoapFormatter()
+          - pattern: |
+              new ObjectStateFormatter()
+    message: >
+      Use of BinaryFormatter or related insecure deserialiser detected.
+      BinaryFormatter is dangerous and can lead to remote code execution.
+      It is obsolete as of .NET 8. Use System.Text.Json or MessagePack instead.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-502: Deserialization of Untrusted Data"
+      owasp:
+        - "A08:2021 - Software and Data Integrity Failures"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+
+  - id: csharp.lang.security.cwe-502.newtonsoft-typenamehandling
+    patterns:
+      - pattern-either:
+          - pattern: |
+              TypeNameHandling = TypeNameHandling.All
+          - pattern: |
+              TypeNameHandling = TypeNameHandling.Auto
+          - pattern: |
+              TypeNameHandling = TypeNameHandling.Objects
+          - pattern: |
+              TypeNameHandling = TypeNameHandling.Arrays
+    message: >
+      Newtonsoft.Json configured with TypeNameHandling != None without a
+      SerializationBinder whitelist. This enables arbitrary type instantiation
+      and can lead to remote code execution.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-502: Deserialization of Untrusted Data"
+      owasp:
+        - "A08:2021 - Software and Data Integrity Failures"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+        - newtonsoft.json

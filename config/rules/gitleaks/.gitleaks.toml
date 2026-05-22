@@ -1,0 +1,36 @@
+# gitleaks configuration for security-review module
+# Extends the default gitleaks ruleset with organisation-specific patterns.
+
+title = "security-review gitleaks config"
+
+[extend]
+# Use the default gitleaks rules as a base
+# Additional rules below
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|apikey)\s*[:=]\s*['"]?([a-zA-Z0-9_\-]{20,})['"]?'''
+tags = ["key", "api"]
+
+[[rules]]
+id = "connection-string"
+description = "Database Connection String with Password"
+regex = '''(?i)(password|pwd)\s*=\s*[^;]{3,}'''
+tags = ["database", "credential"]
+[rules.allowlist]
+regexes = ['''password\s*=\s*\$\{''', '''password\s*=\s*%''']
+
+[[rules]]
+id = "private-key-pem"
+description = "PEM Private Key"
+regex = '''-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----'''
+tags = ["key", "private"]
+
+[allowlist]
+paths = [
+    '''\.gitleaks\.toml$''',
+    '''tests/.*''',
+    '''corpus/.*''',
+    '''\.md$''',
+]

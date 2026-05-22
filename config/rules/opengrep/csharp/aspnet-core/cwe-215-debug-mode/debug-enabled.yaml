@@ -1,0 +1,25 @@
+rules:
+  - id: csharp.aspnet.security.cwe-215.debug-enabled
+    patterns:
+      - pattern-either:
+          - pattern: $APP.UseDeveloperExceptionPage()
+          - pattern: $APP.UseDatabaseErrorPage()
+    message: >
+      Developer exception page or database error page is enabled. These pages
+      expose detailed error messages, stack traces, SQL queries, and
+      environment variables. Use app.UseExceptionHandler() for production and
+      restrict UseDeveloperExceptionPage() to development environments behind
+      an if (app.Environment.IsDevelopment()) guard.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-215: Insertion of Sensitive Information Into Debugging Code"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - csharp
+        - aspnet-core

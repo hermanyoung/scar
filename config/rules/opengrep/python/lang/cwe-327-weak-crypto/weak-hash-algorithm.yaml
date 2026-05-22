@@ -1,0 +1,29 @@
+rules:
+  - id: python.lang.security.cwe-327.weak-hash-algorithm
+    patterns:
+      - pattern-either:
+          - pattern: hashlib.md5(...)
+          - pattern: hashlib.sha1(...)
+          - pattern: hashlib.new("md5", ...)
+          - pattern: hashlib.new("sha1", ...)
+          - pattern: hmac.new(..., digestmod=hashlib.md5)
+          - pattern: hmac.new(..., digestmod=hashlib.sha1)
+          - pattern: hmac.new(..., digestmod="md5")
+          - pattern: hmac.new(..., digestmod="sha1")
+    message: >
+      Use of MD5 or SHA1 for hashing. These algorithms are cryptographically broken
+      and should not be used for security purposes (password hashing, HMAC, digital
+      signatures). Use hashlib.sha256() or hashlib.sha3_256(). For passwords, use
+      bcrypt, scrypt, or argon2.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      confidence: HIGH
+      impact: MEDIUM
+      category: security
+      technology:
+        - python

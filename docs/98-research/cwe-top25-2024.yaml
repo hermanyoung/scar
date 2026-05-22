@@ -1,0 +1,78 @@
+# CWE Top 25 Most Dangerous Software Weaknesses (2024)
+# Source: https://cwe.mitre.org/top25/archive/2024/2024_cwe_top25.html
+
+- rank: 1
+  id: "79"
+  name: "Cross-site Scripting"
+- rank: 2
+  id: "787"
+  name: "Out-of-bounds Write"
+- rank: 3
+  id: "89"
+  name: "SQL Injection"
+- rank: 4
+  id: "352"
+  name: "Cross-Site Request Forgery"
+- rank: 5
+  id: "22"
+  name: "Path Traversal"
+- rank: 6
+  id: "125"
+  name: "Out-of-bounds Read"
+- rank: 7
+  id: "78"
+  name: "OS Command Injection"
+- rank: 8
+  id: "416"
+  name: "Use After Free"
+- rank: 9
+  id: "862"
+  name: "Missing Authorization"
+- rank: 10
+  id: "434"
+  name: "Unrestricted Upload of File with Dangerous Type"
+- rank: 11
+  id: "94"
+  name: "Code Injection"
+- rank: 12
+  id: "20"
+  name: "Improper Input Validation"
+- rank: 13
+  id: "77"
+  name: "Command Injection"
+- rank: 14
+  id: "287"
+  name: "Improper Authentication"
+- rank: 15
+  id: "269"
+  name: "Improper Privilege Management"
+- rank: 16
+  id: "502"
+  name: "Deserialization of Untrusted Data"
+- rank: 17
+  id: "200"
+  name: "Exposure of Sensitive Information"
+- rank: 18
+  id: "863"
+  name: "Incorrect Authorization"
+- rank: 19
+  id: "918"
+  name: "Server-Side Request Forgery"
+- rank: 20
+  id: "119"
+  name: "Buffer Overflow"
+- rank: 21
+  id: "476"
+  name: "NULL Pointer Dereference"
+- rank: 22
+  id: "798"
+  name: "Use of Hard-coded Credentials"
+- rank: 23
+  id: "190"
+  name: "Integer Overflow"
+- rank: 24
+  id: "400"
+  name: "Uncontrolled Resource Consumption"
+- rank: 25
+  id: "306"
+  name: "Missing Authentication for Critical Function"

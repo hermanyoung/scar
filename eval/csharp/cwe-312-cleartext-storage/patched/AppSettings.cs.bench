@@ -1,0 +1,3 @@
+cwe: "312"
+expect: not_found
+notes: "Secure — secrets from Key Vault, PII fields encrypted"

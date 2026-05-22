@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# pre-commit hook — runs structural code rules against staged files,
+# then regenerates the code map and quality report.
+set -euo pipefail
+python scripts/check_rules.py || exit 1
+python scripts/code_map.py
+python scripts/code_quality.py --no-bandit --no-radon

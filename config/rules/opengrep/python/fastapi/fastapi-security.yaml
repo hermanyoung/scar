@@ -1,0 +1,50 @@
+rules:
+  - id: python.fastapi.security.sql-injection
+    patterns:
+      - pattern-either:
+          - pattern: $DB.execute(f"...")
+          - pattern: $DB.execute("..." + $X + "...")
+          - pattern: $DB.execute("...".format(...))
+          - pattern: $DB.execute("..." % ...)
+    message: >
+      Raw SQL using string formatting detected. Use parameterised queries
+      or an ORM (SQLAlchemy, Tortoise) to prevent SQL injection.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - python
+        - fastapi
+
+  - id: python.fastapi.security.ssrf-user-url
+    patterns:
+      - pattern-either:
+          - pattern: requests.get($URL)
+          - pattern: requests.post($URL, ...)
+          - pattern: httpx.get($URL)
+          - pattern: httpx.post($URL, ...)
+          - pattern: await $CLIENT.get($URL)
+          - pattern: await $CLIENT.post($URL, ...)
+    message: >
+      HTTP request to a URL that may be user-controlled. If an attacker can
+      control the URL, they can make the server request internal services (SSRF).
+      Validate URLs against an allowlist of permitted hosts and schemes before
+      making requests.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-918: Server-Side Request Forgery (SSRF)"
+      owasp:
+        - "A10:2021 - Server-Side Request Forgery"
+      confidence: LOW
+      impact: HIGH
+      category: security
+      technology:
+        - python
+        - fastapi

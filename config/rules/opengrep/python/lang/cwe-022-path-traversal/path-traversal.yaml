@@ -1,0 +1,29 @@
+rules:
+  - id: python.lang.security.cwe-022.path-traversal
+    patterns:
+      - pattern-either:
+          - pattern: open(... + $USER_INPUT + ..., ...)
+          - pattern: open(f"...{$USER_INPUT}...", ...)
+          - pattern: open(os.path.join(..., $USER_INPUT, ...), ...)
+          - pattern: pathlib.Path($USER_INPUT)
+          - pattern: shutil.copy($USER_INPUT, ...)
+          - pattern: shutil.copy(..., $USER_INPUT)
+          - pattern: shutil.move($USER_INPUT, ...)
+          - pattern: os.path.join(..., request.$ATTR, ...)
+    message: >
+      File path constructed from user input without validation. If the input
+      contains ../ sequences, an attacker can read or write files outside the
+      intended directory. Validate paths with os.path.realpath() and check
+      they remain within the expected base directory.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - python

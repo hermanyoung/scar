@@ -1,0 +1,27 @@
+rules:
+  - id: csharp.lang.security.cwe-022.path-traversal
+    patterns:
+      - pattern-either:
+          - pattern: System.IO.File.ReadAllText(... + $USER_INPUT + ...)
+          - pattern: System.IO.File.ReadAllText($"...{$USER_INPUT}...")
+          - pattern: System.IO.Path.Combine(..., $USER_INPUT, ...)
+          - pattern: new StreamReader(... + $USER_INPUT + ...)
+          - pattern: new FileStream(... + $USER_INPUT + ..., ...)
+          - pattern: System.IO.File.Open(... + $USER_INPUT + ..., ...)
+    message: >
+      File path constructed from user input without validation. If the input
+      contains ../ or ..\ sequences, an attacker can access files outside the
+      intended directory. Use Path.GetFullPath() and verify the resolved path
+      starts with the expected base directory.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - csharp

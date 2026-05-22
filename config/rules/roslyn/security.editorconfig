@@ -1,0 +1,76 @@
+# Security-focused EditorConfig for Roslyn analyzers.
+# Elevates security-relevant rules to warning/error.
+
+[*.cs]
+
+# SQL Injection
+dotnet_diagnostic.CA2100.severity = warning
+
+# Do not catch CorruptedStateExceptions
+dotnet_diagnostic.CA2153.severity = warning
+
+# Input validation (CA3001-CA3012)
+dotnet_diagnostic.CA3001.severity = warning
+dotnet_diagnostic.CA3002.severity = warning
+dotnet_diagnostic.CA3003.severity = warning
+dotnet_diagnostic.CA3004.severity = warning
+dotnet_diagnostic.CA3005.severity = warning
+dotnet_diagnostic.CA3006.severity = warning
+dotnet_diagnostic.CA3007.severity = warning
+dotnet_diagnostic.CA3008.severity = warning
+dotnet_diagnostic.CA3009.severity = warning
+dotnet_diagnostic.CA3010.severity = warning
+dotnet_diagnostic.CA3011.severity = warning
+dotnet_diagnostic.CA3012.severity = warning
+
+# Cryptography rules
+dotnet_diagnostic.CA5350.severity = warning  # Weak crypto algorithm
+dotnet_diagnostic.CA5351.severity = warning  # Broken crypto algorithm
+dotnet_diagnostic.CA5358.severity = warning  # Unsafe cipher mode
+dotnet_diagnostic.CA5359.severity = warning  # Do not disable cert validation
+dotnet_diagnostic.CA5360.severity = warning  # Dangerous deserialization
+dotnet_diagnostic.CA5361.severity = warning  # SChannel use of strong crypto
+dotnet_diagnostic.CA5362.severity = warning  # Potential reference cycle
+dotnet_diagnostic.CA5363.severity = warning  # Do not disable request validation
+dotnet_diagnostic.CA5364.severity = warning  # Deprecated security protocols
+dotnet_diagnostic.CA5365.severity = warning  # Do not disable HTTP header checking
+dotnet_diagnostic.CA5366.severity = warning  # XmlReader for DataSet read XML
+dotnet_diagnostic.CA5367.severity = warning  # Do not serialize types with pointer fields
+dotnet_diagnostic.CA5368.severity = warning  # Set ViewStateUserKey
+dotnet_diagnostic.CA5369.severity = warning  # Use XmlReader for deserialization
+dotnet_diagnostic.CA5370.severity = warning  # Use XmlReader for validating reader
+dotnet_diagnostic.CA5371.severity = warning  # Use XmlReader for schema read
+dotnet_diagnostic.CA5372.severity = warning  # Use XmlReader for XPathDocument
+dotnet_diagnostic.CA5373.severity = warning  # Obsolete key derivation function
+dotnet_diagnostic.CA5374.severity = warning  # Do not use XslTransform
+dotnet_diagnostic.CA5375.severity = warning  # Do not use account SAS
+dotnet_diagnostic.CA5376.severity = warning  # Use SharedAccessProtocol HttpsOnly
+dotnet_diagnostic.CA5377.severity = warning  # Use container level access policy
+dotnet_diagnostic.CA5378.severity = warning  # ServicePointManagerSecurityProtocols
+dotnet_diagnostic.CA5379.severity = warning  # Weak key derivation function algorithm
+dotnet_diagnostic.CA5380.severity = warning  # Do not add certs to root store
+dotnet_diagnostic.CA5381.severity = warning  # Certs not added to root store
+dotnet_diagnostic.CA5382.severity = warning  # Use secure cookies in ASP.NET Core
+dotnet_diagnostic.CA5383.severity = warning  # Ensure use of secure cookies
+dotnet_diagnostic.CA5384.severity = warning  # Do not use DSA
+dotnet_diagnostic.CA5385.severity = warning  # Use RSA with sufficient key size
+dotnet_diagnostic.CA5386.severity = warning  # Avoid hardcoding SecurityProtocolType
+dotnet_diagnostic.CA5387.severity = warning  # Weak key derivation function insufficient iteration count
+dotnet_diagnostic.CA5388.severity = warning  # Ensure sufficient iteration count
+dotnet_diagnostic.CA5389.severity = warning  # Do not add archive item path to target filesystem path
+dotnet_diagnostic.CA5390.severity = warning  # Do not hard-code encryption key
+dotnet_diagnostic.CA5391.severity = warning  # Use antiforgery tokens in ASP.NET Core MVC
+dotnet_diagnostic.CA5392.severity = warning  # Use DefaultDllImportSearchPaths
+dotnet_diagnostic.CA5393.severity = warning  # Do not use unsafe DllImportSearchPath
+dotnet_diagnostic.CA5394.severity = warning  # Do not use insecure randomness
+dotnet_diagnostic.CA5395.severity = warning  # Miss HttpVerb attribute for action methods
+dotnet_diagnostic.CA5396.severity = warning  # Set HttpOnly to true for HttpCookie
+dotnet_diagnostic.CA5397.severity = warning  # Do not use deprecated SslProtocols values
+dotnet_diagnostic.CA5398.severity = warning  # Avoid hardcoded SslProtocols values
+dotnet_diagnostic.CA5399.severity = warning  # Definitely disable HttpClient cert revocation list check
+dotnet_diagnostic.CA5400.severity = warning  # Ensure HttpClient cert revocation list check not disabled
+dotnet_diagnostic.CA5401.severity = warning  # Do not use CreateEncryptor with non-default IV
+dotnet_diagnostic.CA5402.severity = warning  # Use CreateEncryptor with the default IV
+dotnet_diagnostic.CA5403.severity = warning  # Do not hard-code certificate
+dotnet_diagnostic.CA5404.severity = warning  # Do not disable token validation checks
+dotnet_diagnostic.CA5405.severity = warning  # Do not always skip token validation

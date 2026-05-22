@@ -1,0 +1,31 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": { "name": "opengrep", "rules": [] }
+      },
+      "results": [
+        {
+          "ruleId": "python.django.security.cwe-089.django-raw-sql",
+          "level": "warning",
+          "message": { "text": "sqlite3 cursor.execute with f-string interpolation" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "sql_injection.py" }, "region": { "startLine": 10 } } }]
+        },
+        {
+          "ruleId": "python.django.security.cwe-089.django-raw-sql",
+          "level": "warning",
+          "message": { "text": "Django objects.raw() with f-string interpolation" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "sql_injection.py" }, "region": { "startLine": 17 } } }]
+        },
+        {
+          "ruleId": "python.django.security.cwe-089.django-raw-sql",
+          "level": "warning",
+          "message": { "text": "Django cursor.execute with f-string interpolation" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "sql_injection.py" }, "region": { "startLine": 23 } } }]
+        }
+      ]
+    }
+  ]
+}

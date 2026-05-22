@@ -1,0 +1,35 @@
+rules:
+  - id: csharp.lang.security.cwe-089.ado-net-string-concat
+    patterns:
+      - pattern-either:
+          - pattern: |
+              new SqlCommand($"...", ...)
+          - pattern: |
+              new SqlCommand("..." + $X + "...", ...)
+          - pattern: |
+              new SqlCommand(string.Format("...", $X), ...)
+          - pattern: |
+              $CMD.CommandText = $"...";
+          - pattern: |
+              $CMD.CommandText = "..." + $X + "...";
+    message: >
+      SQL query constructed via string concatenation or interpolation in ADO.NET SqlCommand.
+      This is vulnerable to SQL injection. Use parameterised queries with SqlParameter instead.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+      references:
+        - https://learn.microsoft.com/en-us/dotnet/api/system.data.sqlclient.sqlcommand
+    fix: |
+      Use parameterised queries:
+        var cmd = new SqlCommand("SELECT * FROM Users WHERE Name = @name", conn);
+        cmd.Parameters.AddWithValue("@name", userInput);

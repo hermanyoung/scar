@@ -1,0 +1,31 @@
+rules:
+  - id: csharp.lang.security.cwe-327.weak-crypto-algorithm
+    patterns:
+      - pattern-either:
+          - pattern: MD5.Create()
+          - pattern: SHA1.Create()
+          - pattern: new HMACSHA1(...)
+          - pattern: DES.Create()
+          - pattern: TripleDES.Create()
+          - pattern: RC2.Create()
+          - pattern: new DESCryptoServiceProvider()
+          - pattern: new TripleDESCryptoServiceProvider()
+          - pattern: new RC2CryptoServiceProvider()
+          - pattern: new RIPEMD160Managed()
+          - pattern: CipherMode.ECB
+    message: >
+      Use of a broken or weak cryptographic algorithm. MD5, SHA1, DES, TripleDES,
+      RC2, RIPEMD160, and ECB mode are considered insecure. Use SHA-256/SHA-512
+      for hashing, AES-256-GCM for encryption, and HMACSHA256 for MACs.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      confidence: HIGH
+      impact: MEDIUM
+      category: security
+      technology:
+        - .net

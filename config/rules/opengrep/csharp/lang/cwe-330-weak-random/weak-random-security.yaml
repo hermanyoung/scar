@@ -1,0 +1,27 @@
+rules:
+  - id: csharp.lang.security.cwe-330.weak-random-security
+    patterns:
+      - pattern-either:
+          - pattern: new Random(...)
+          - pattern: new System.Random(...)
+          - pattern: Random.Shared.Next(...)
+          - pattern: Random.Shared.NextDouble(...)
+          - pattern: Random.Shared.NextBytes(...)
+    message: >
+      Use of System.Random detected. System.Random is a predictable PRNG and
+      must not be used for security-sensitive operations (tokens, passwords,
+      session IDs, nonces). Use System.Security.Cryptography.RandomNumberGenerator
+      instead: RandomNumberGenerator.GetBytes(), RandomNumberGenerator.GetInt32().
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-330: Use of Insufficiently Random Values"
+        - "CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      confidence: LOW
+      impact: HIGH
+      category: security
+      technology:
+        - csharp

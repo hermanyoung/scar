@@ -1,0 +1,3 @@
+cwe: "693"
+expect: not_found
+notes: "Secure — rate limiting and anti-forgery token validation present"

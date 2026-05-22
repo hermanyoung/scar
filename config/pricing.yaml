@@ -1,0 +1,55 @@
+# =============================================================================
+# LLM Pricing (per token)
+# =============================================================================
+# Loaded by: src/security_review/budget.py
+# Schema:    each entry is a model key with two required fields:
+#
+#   <provider:model-id>:
+#     input_per_token:  float   # USD per input token
+#     output_per_token: float   # USD per output token
+#
+# Key format: "provider:model-id" matching the resolved model string
+# (after alias expansion from models.yaml).
+# Every model used must have an explicit entry — missing entries fail fast.
+# Add new entries here when onboarding a model — never hardcode in Python.
+# =============================================================================
+
+# Copilot models: $0 via GitHub subscription, but we track token-equivalent
+# cost for budget monitoring and comparison purposes.
+copilot:claude-opus:
+  input_per_token: 0.000005
+  output_per_token: 0.000025
+copilot:claude-sonnet:
+  input_per_token: 0.000003
+  output_per_token: 0.000015
+copilot:gpt-5.5:
+  input_per_token: 0.000002
+  output_per_token: 0.000010
+
+# Claude Agent SDK: $0 via Max/Pro subscription.
+# Token-equivalent cost for budget monitoring.
+claude:claude-opus:
+  input_per_token: 0.000005
+  output_per_token: 0.000025
+claude:claude-sonnet:
+  input_per_token: 0.000003
+  output_per_token: 0.000015
+
+# Codex (ChatGPT subscription): $0 via Plus/Pro.
+codex:gpt:
+  input_per_token: 0.000002
+  output_per_token: 0.000010
+
+# Direct API pricing
+openai:gpt-5.5:
+  input_per_token: 0.000002
+  output_per_token: 0.000010
+openai:gpt-5.4-mini:
+  input_per_token: 0.0000004
+  output_per_token: 0.0000016
+anthropic:claude-opus-4-6:
+  input_per_token: 0.000005
+  output_per_token: 0.000025
+anthropic:claude-sonnet-4-6:
+  input_per_token: 0.000003
+  output_per_token: 0.000015

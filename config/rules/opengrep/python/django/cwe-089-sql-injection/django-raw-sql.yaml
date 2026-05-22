@@ -1,0 +1,33 @@
+rules:
+  - id: python.django.security.cwe-089.django-raw-sql
+    patterns:
+      - pattern-either:
+          - pattern: $MODEL.objects.raw(f"...")
+          - pattern: $MODEL.objects.raw("..." + $X + "...")
+          - pattern: $MODEL.objects.raw("...".format(...))
+          - pattern: $MODEL.objects.raw("..." % ...)
+          - pattern: $MODEL.objects.extra(where=[f"..."])
+          - pattern: $MODEL.objects.extra(where=["..." + $X + "..."])
+          - pattern: RawSQL(f"...")
+          - pattern: RawSQL("..." + $X + "...")
+          - pattern: cursor.execute(f"...")
+          - pattern: cursor.execute("..." + $X + "...")
+          - pattern: cursor.execute("...".format(...))
+          - pattern: cursor.execute("..." % ...)
+    message: >
+      Django ORM bypassed with raw SQL using string formatting. This is vulnerable
+      to SQL injection. Use parameterised queries: Model.objects.raw("... WHERE id = %s", [param])
+      or cursor.execute("... WHERE id = %s", [param]).
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - python
+        - django

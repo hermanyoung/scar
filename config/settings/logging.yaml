@@ -1,0 +1,39 @@
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+# Loaded by: src/security_review/logging.py (setup_logging)
+# Schema:
+#
+#   level:   str   # DEBUG | INFO | WARNING | ERROR | CRITICAL
+#   format:  str   # "json" | "console"
+#
+#   handlers:
+#     console:
+#       enabled: bool
+#     file:
+#       enabled:           bool
+#       path:              str   # relative to project root
+#       rotation_when:     str   # "midnight" | "H" | "D" | "W0"-"W6"
+#       rotation_interval: int   # rotate every N units
+#       backup_count:      int   # days of rotated logs to keep
+#
+# Structured fields in every JSON log record:
+#   timestamp, level, logger, event, func_name, lineno, run_id
+#
+# Query logs:
+#   jq 'select(.level == "error")' var/logs/system.jsonl
+#   tail -f var/logs/system.jsonl | jq .
+# =============================================================================
+
+level: "INFO"
+format: "json"
+
+handlers:
+  console:
+    enabled: true
+  file:
+    enabled: true
+    path: "var/logs/system.jsonl"
+    rotation_when: "midnight"
+    rotation_interval: 1
+    backup_count: 14

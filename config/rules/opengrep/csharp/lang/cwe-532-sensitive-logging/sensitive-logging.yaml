@@ -1,0 +1,48 @@
+rules:
+  - id: csharp.lang.security.cwe-532.sensitive-logging
+    patterns:
+      - pattern-either:
+          - pattern: $LOGGER.LogInformation($"...password...")
+          - pattern: $LOGGER.LogInformation($"...token...")
+          - pattern: $LOGGER.LogInformation($"...secret...")
+          - pattern: $LOGGER.LogInformation($"...apiKey...")
+          - pattern: $LOGGER.LogWarning($"...password...")
+          - pattern: $LOGGER.LogWarning($"...token...")
+          - pattern: $LOGGER.LogWarning($"...secret...")
+          - pattern: $LOGGER.LogWarning($"...apiKey...")
+          - pattern: $LOGGER.LogError($"...password...")
+          - pattern: $LOGGER.LogError($"...token...")
+          - pattern: $LOGGER.LogError($"...secret...")
+          - pattern: $LOGGER.LogError($"...apiKey...")
+          - pattern: $LOGGER.LogDebug($"...password...")
+          - pattern: $LOGGER.LogDebug($"...token...")
+          - pattern: $LOGGER.LogDebug($"...secret...")
+          - pattern: $LOGGER.LogDebug($"...apiKey...")
+          - pattern: $LOGGER.LogCritical($"...password...")
+          - pattern: $LOGGER.LogCritical($"...token...")
+          - pattern: $LOGGER.LogCritical($"...secret...")
+          - pattern: $LOGGER.LogCritical($"...apiKey...")
+          - pattern: $LOGGER.LogTrace($"...password...")
+          - pattern: $LOGGER.LogTrace($"...token...")
+          - pattern: $LOGGER.LogTrace($"...secret...")
+          - pattern: $LOGGER.LogTrace($"...apiKey...")
+          - pattern: Console.WriteLine($"...password...")
+          - pattern: Console.WriteLine($"...token...")
+          - pattern: Console.WriteLine($"...secret...")
+    message: >
+      Sensitive data (password, token, secret, API key) is being logged.
+      Log files are often stored in plain text and aggregated in log
+      management systems. Redact sensitive values before logging, or log
+      only non-sensitive identifiers (UserId, RequestId).
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-532: Insertion of Sensitive Information into Log File"
+      owasp:
+        - "A09:2021 - Security Logging and Monitoring Failures"
+      confidence: MEDIUM
+      impact: MEDIUM
+      category: security
+      technology:
+        - csharp

@@ -1,0 +1,33 @@
+rules:
+  - id: csharp.ef-core.security.cwe-089.ef-raw-sql
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CTX.Database.ExecuteSqlRaw($"...", ...)
+          - pattern: |
+              $CTX.Database.ExecuteSqlRaw("..." + $X + "...", ...)
+          - pattern: |
+              $CTX.$SET.FromSqlRaw($"...", ...)
+          - pattern: |
+              $CTX.$SET.FromSqlRaw("..." + $X + "...", ...)
+    message: >
+      EF Core raw SQL query with string interpolation or concatenation.
+      FromSqlRaw and ExecuteSqlRaw do NOT parameterise interpolated strings.
+      Use FromSqlInterpolated / ExecuteSqlInterpolated instead, which automatically
+      parameterise interpolated values.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+        - entity-framework-core
+    fix: |
+      Use FromSqlInterpolated which auto-parameterises:
+        ctx.Users.FromSqlInterpolated($"SELECT * FROM Users WHERE Name = {name}");

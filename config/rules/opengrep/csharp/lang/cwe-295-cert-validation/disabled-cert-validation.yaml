@@ -1,0 +1,27 @@
+rules:
+  - id: csharp.lang.security.cwe-295.disabled-cert-validation
+    patterns:
+      - pattern-either:
+          - pattern: ServerCertificateCustomValidationCallback = (...) => true
+          - pattern: ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+          - pattern: ServicePointManager.ServerCertificateValidationCallback = (...) => true
+          - pattern: ServicePointManager.ServerCertificateValidationCallback += (...) => true
+          - pattern: |
+              $HANDLER.ServerCertificateCustomValidationCallback = (...) => true
+    message: >
+      TLS certificate validation is disabled by always returning true from the
+      validation callback. This allows man-in-the-middle attacks. Never bypass
+      certificate validation in production. Use the default validation or
+      configure a trusted CA certificate store.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-295: Improper Certificate Validation"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - csharp

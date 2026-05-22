@@ -1,0 +1,3 @@
+cwe: "200"
+expect: not_found
+notes: "Secure — [Authorize(Roles=Admin)] and no sensitive data exposed"

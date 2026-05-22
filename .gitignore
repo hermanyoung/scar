@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code (local-only, not part of project tooling)
+CLAUDE.md
+.claude/
+
+# Environment
+.env
+
+# Caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Logs — keep var/logs/.gitkeep but ignore actual log files
+var/logs/*.jsonl
+var/logs/*.jsonl.*
+
+# Code map and quality reports
+.codemap/
+
+# Pipeline output
+var/output/
+var/tmp/
+.DS_Store

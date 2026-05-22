@@ -1,0 +1,24 @@
+# =============================================================================
+# Provider Auth Configuration
+# =============================================================================
+# Loaded by: src/security_review/model_providers.py (resolve_api_key)
+# Schema:
+#
+#   <provider>:
+#     auth_mode: str    # "api_key" | "copilot_oauth" | "codex_oauth" | "claude_oauth"
+#     env_var:   str    # environment variable name for the API key (optional)
+#
+# Actual secrets live in config/.env or environment variables, not here.
+# =============================================================================
+
+openai:
+  auth_mode: api_key
+  env_var: OPENAI_API_KEY
+
+anthropic:
+  auth_mode: api_key
+  env_var: ANTHROPIC_API_KEY
+
+copilot:
+  auth_mode: copilot_oauth
+  # No env_var - CopilotModel handles auth via copilot CLI login

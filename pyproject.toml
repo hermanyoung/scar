@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scar"
+version = "1.0.0"
+description = "SCAR — Security Code AI Review. SAST + LLM security analysis pipeline."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.7",
+    "pyyaml>=6.0",
+    "click>=8.0",
+    "structlog>=24.0",
+    "rich>=13.0",
+    "tree-sitter>=0.23",
+    "tree-sitter-c-sharp>=0.23",
+]
+
+[project.optional-dependencies]
+openai = ["pydantic-ai[openai]>=0.2.14"]
+anthropic = ["pydantic-ai[anthropic]>=0.2.14"]
+copilot = ["github-copilot-sdk==0.2.2", "json-repair>=0.30"]
+claude = ["claude-agent-sdk>=0.1.63"]
+all = [
+    "pydantic-ai[openai,anthropic]>=0.2.14",
+    "bandit[sarif]>=1.9.4",
+    "github-copilot-sdk==0.2.2",
+    "claude-agent-sdk>=0.1.63",
+    "json-repair>=0.30",
+]
+sast = [
+    "bandit[sarif]>=1.9.4",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pydantic-ai[openai,anthropic]>=0.2.14",
+    "bandit[sarif]>=1.9.4",
+]
+
+# [project.scripts]
+# Entry point is scar.py at project root (Click CLI).
+# No console_scripts — run directly: python scar.py
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/security_review", "src/code_analysis", "src/code_quality"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

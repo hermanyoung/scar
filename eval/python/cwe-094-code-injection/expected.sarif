@@ -1,0 +1,37 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": { "name": "opengrep", "rules": [] }
+      },
+      "results": [
+        {
+          "ruleId": "python.lang.security.cwe-094.eval-exec",
+          "level": "warning",
+          "message": { "text": "eval() with user input" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "code_injection.py" }, "region": { "startLine": 6 } } }]
+        },
+        {
+          "ruleId": "python.lang.security.cwe-094.eval-exec",
+          "level": "warning",
+          "message": { "text": "exec() with user input" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "code_injection.py" }, "region": { "startLine": 12 } } }]
+        },
+        {
+          "ruleId": "python.lang.security.cwe-094.eval-exec",
+          "level": "warning",
+          "message": { "text": "compile() with user input" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "code_injection.py" }, "region": { "startLine": 17 } } }]
+        },
+        {
+          "ruleId": "python.lang.security.cwe-094.eval-exec",
+          "level": "warning",
+          "message": { "text": "exec() of compiled user input" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "code_injection.py" }, "region": { "startLine": 18 } } }]
+        }
+      ]
+    }
+  ]
+}

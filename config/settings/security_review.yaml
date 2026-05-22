@@ -1,0 +1,110 @@
+# =============================================================================
+# Security Review Configuration
+# =============================================================================
+# Loaded by: src/security_review/config.py → config_schema.py
+# Schema:    SecurityReviewConfig (all fields required unless noted)
+#
+# llm:
+#   provider_model:       str     # "provider:model" e.g. "copilot:claude-opus"
+#   triage_model:         str?    # override for Pass 3. null = use provider_model
+#   output_retries:       int     # 1-5 (default: 3)
+#   max_budget_usd:       float   # 0 = unlimited
+#   max_tokens_per_batch: int     # 10k-500k (default: 150000)
+#   concurrency:          int     # 1-50, agent calls dispatched in parallel
+#   cache_ttl:            str?    # "ephemeral" | "5m" | "1h" | null (Anthropic only)
+#   thinking_budget:      int?    # 1000-100000 | null (Anthropic only)
+#   temperature:          float?  # 0.0-2.0 | null = provider default
+#   providers:
+#     <name>:                     # copilot | claude | anthropic | openai | codex
+#       max_concurrent:   int     # 1-100
+#       session_timeout:  float   # 10-600 seconds
+#       backoff_seconds:  float   # 1-60 seconds
+#
+# sast:
+#   opengrep_rules_path:          str   # relative path to OpenGrep rules (config/rules/opengrep)
+#   gitleaks_config_path:         str   # relative path to gitleaks config (config/rules/gitleaks/...)
+#   roslyn_props_path:            str   # relative path to Roslyn security props (config/rules/roslyn/...)
+#   scanner_timeout_seconds:      int   # 30-1800
+#   scanner_max_file_size_bytes:  int   # min 1024
+#
+# triage:
+#   fp_confidence_threshold:  float  # 0.0-1.0
+#   min_score:                float  # 0.0-1.0, priority threshold for triage
+#   default_confidence:       float  # 0.0-1.0, used when LLM omits confidence
+#
+# review:
+#   mode:            str   # "full" | "sast" | "sast-triage"
+#   target_path:     str   # codebase root (overridden by CLI --target)
+#   output_sarif:    str   # SARIF output filename
+#   output_summary:  str   # markdown summary filename (default: security-report.md)
+#   output_triage:   str   # triage audit log filename (default: triage.json)
+# =============================================================================
+
+llm:
+  provider_model: "copilot:claude-opus"
+  triage_model: "copilot:claude-sonnet"
+  output_retries: 3
+  max_budget_usd: 100            # Safety net for runaway agents. 0 = unlimited.
+  max_tokens_per_batch: 150000
+  concurrency: 1                 # Pass-level: how many agent calls dispatched concurrently.
+
+  # Anthropic-specific: prompt caching (90% savings on repeated system prompts).
+  # All 26 CWE checks share the same system prompt — checks 2-26 hit cache.
+  # Values: "ephemeral" (request-scoped), "5m", "1h", "None" (disabled).
+  # Only applies when provider_model starts with "anthropic:".
+  cache_ttl: "ephemeral"
+
+  # Anthropic-specific: extended thinking for complex reasoning.
+  # Set to token budget (e.g. 10000) for authZ closure, deserialization chains.
+  # Only applies when provider_model starts with "anthropic:". null = disabled.
+  # thinking_budget: 10000
+
+  # LLM sampling temperature — controls result determinism.
+  # null = provider default (typically 1.0 for Claude, 1.0 for GPT).
+  # 0.0  = fully deterministic, reproducible across runs (recommended for CI/benchmarks).
+  # 0.2  = low variance, occasional novel findings.
+  # Per-provider overrides available under providers.<name>.temperature below.
+  temperature: 0.2
+
+  # Per-provider capacity settings.
+  # Each provider has different rate limits and transport characteristics.
+  providers:
+    copilot:
+      max_concurrent: 2          # Copilot API rate-limits aggressively. 2 is safe.
+      session_timeout: 120.0     # Large CWE checks (e.g. 116 with 17 files) need >90s.
+      backoff_seconds: 10.0      # Wait before fresh-session retry on timeout.
+    claude:
+      max_concurrent: 2          # Claude Agent SDK (Max/Pro OAuth). Conservative limit.
+      session_timeout: 120.0     # Agent SDK has subprocess overhead; allow more time.
+      backoff_seconds: 10.0
+    anthropic:
+      max_concurrent: 10         # httpx connection pooling handles concurrency natively.
+      session_timeout: 120.0
+      backoff_seconds: 5.0
+    openai:
+      max_concurrent: 10
+      session_timeout: 120.0
+      backoff_seconds: 5.0
+    codex:
+      max_concurrent: 5          # Codex OAuth (ChatGPT subscription). Moderate limits.
+      session_timeout: 120.0
+      backoff_seconds: 5.0
+
+sast:
+  opengrep_rules_path: "config/rules/opengrep"
+  gitleaks_config_path: "config/rules/gitleaks/.gitleaks.toml"
+  roslyn_props_path: "config/rules/roslyn/Directory.Build.security.props"
+  scanner_timeout_seconds: 300
+  scanner_max_file_size_bytes: 1048576   # 1 MB
+
+triage:
+  fp_confidence_threshold: 0.75
+  min_score: 0.20                        # MODERATE+ threshold. 0.0 = triage everything.
+  default_confidence: 0.5                # Assigned when LLM omits confidence. Low = conservative.
+
+review:
+  mode: "full"
+  target_path: "."
+  output_sarif: "security-report.sarif"
+  output_summary: "security-report.md"
+  output_triage: "triage.json"

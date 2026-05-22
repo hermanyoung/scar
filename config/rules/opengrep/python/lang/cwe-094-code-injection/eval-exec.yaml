@@ -1,0 +1,23 @@
+rules:
+  - id: python.lang.security.cwe-094.eval-exec
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: exec(...)
+          - pattern: compile($X, ...)
+    message: >
+      Use of eval(), exec(), or compile() detected. If any argument originates from
+      user input, this enables arbitrary code execution. Replace with safe alternatives:
+      ast.literal_eval() for parsing literals, or a proper expression parser.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+      owasp:
+        - "A03:2021 - Injection"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - python

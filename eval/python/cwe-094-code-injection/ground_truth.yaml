@@ -1,0 +1,28 @@
+cwe: "094"
+language: python
+description: "Code injection via eval(), exec(), compile()"
+
+findings:
+  - file: "code_injection.py"
+    line: 6
+    cwe_id: "CWE-94"
+    label: true_positive
+    description: "eval() with user input"
+    sink: "eval"
+    source: "user_input parameter"
+
+  - file: "code_injection.py"
+    line: 11
+    cwe_id: "CWE-94"
+    label: true_positive
+    description: "exec() with user input"
+    sink: "exec"
+    source: "code parameter"
+
+  - file: "code_injection.py"
+    line: 16
+    cwe_id: "CWE-94"
+    label: true_positive
+    description: "compile() with user input"
+    sink: "compile"
+    source: "source parameter"

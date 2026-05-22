@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# commit-msg hook
+# 1. Strips Co-authored-by lines added by AI agents (Claude Code, Codex, Copilot, etc.)
+# 2. Enforces YYYY-MM-DD HH:MM prefix using the real system clock
+
+set -euo pipefail
+
+COMMIT_MSG_FILE="$1"
+MSG=$(cat "$COMMIT_MSG_FILE")
+
+# ---------------------------------------------------------------------------
+# 1. Strip all Co-authored-by lines (always injected by AI agents in this repo)
+# ---------------------------------------------------------------------------
+MSG=$(printf '%s\n' "$MSG" | grep -viE '^[[:space:]]*Co-authored-by:' || true)
+# Also strip trailing blank lines left behind
+MSG=$(printf '%s\n' "$MSG" | sed -e 's/[[:space:]]*$//' | awk 'BEGIN{blank=0} /^$/{blank++; next} {for(i=0;i<blank;i++) print ""; blank=0; print}')
+
+# ---------------------------------------------------------------------------
+# 2. Enforce YYYY-MM-DD HH:MM prefix with verified system timestamp
+# ---------------------------------------------------------------------------
+NOW=$(date '+%Y-%m-%d %H:%M')
+PREFIX_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}'
+
+if printf '%s\n' "$MSG" | grep -qE "$PREFIX_RE"; then
+    # Prefix exists — extract and validate the timestamp
+    EXISTING_TS=$(printf '%s\n' "$MSG" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}')
+
+    # Epoch conversion — macOS (date -j) and Linux (date -d) compatible
+    if date --version &>/dev/null 2>&1; then
+        # GNU date (Linux)
+        NOW_EPOCH=$(date +%s)
+        MSG_EPOCH=$(date -d "$EXISTING_TS" +%s 2>/dev/null || echo 0)
+    else
+        # BSD date (macOS)
+        NOW_EPOCH=$(date +%s)
+        MSG_EPOCH=$(date -j -f '%Y-%m-%d %H:%M' "$EXISTING_TS" +%s 2>/dev/null || echo 0)
+    fi
+
+    DIFF=$(( NOW_EPOCH - MSG_EPOCH ))
+    # Absolute value
+    ABS_DIFF=$(( DIFF < 0 ? -DIFF : DIFF ))
+
+    if [ "$ABS_DIFF" -gt 900 ]; then
+        # Timestamp is stale or hallucinated — replace it with real clock
+        MSG=$(printf '%s\n' "$MSG" | sed "s/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\} [0-9]\{2\}:[0-9]\{2\}/$NOW/")
+        printf 'commit-msg: replaced stale timestamp with real clock: %s\n' "$NOW" >&2
+    fi
+else
+    # No prefix — prepend with real clock
+    MSG="$NOW $MSG"
+fi
+
+# ---------------------------------------------------------------------------
+# Write back
+# ---------------------------------------------------------------------------
+printf '%s\n' "$MSG" > "$COMMIT_MSG_FILE"
