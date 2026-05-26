@@ -22,12 +22,12 @@ class ProviderConfig(BaseModel, extra="forbid"):
 
 class LLMConfig(BaseModel, extra="forbid"):
     provider_model: str = Field(
-        pattern=r"^(openai|anthropic|copilot|codex|claude):.+$",
+        pattern=r"^(openai|anthropic|copilot|codex|claude|bedrock):.+$",
         description="Provider-prefixed model string",
     )
     triage_model: str | None = Field(
         default=None,
-        pattern=r"^(openai|anthropic|copilot|codex|claude):.+$",
+        pattern=r"^(openai|anthropic|copilot|codex|claude|bedrock):.+$",
         description="Override model for Pass 3 triage. Falls back to provider_model.",
     )
     output_retries: int = Field(default=3, ge=1, le=5)

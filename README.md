@@ -426,6 +426,7 @@ Configured in `config/providers.yaml`:
 | `claude` | Claude Max/Pro OAuth | $0 | CLAUDE_CODE_OAUTH_TOKEN (auto via Claude Code) |
 | `copilot` | GitHub Copilot OAuth | $0 | `gh auth login` + `pip install github-copilot-sdk` |
 | `anthropic` | API key | Per-token | Set `ANTHROPIC_API_KEY` |
+| `bedrock` | AWS (boto3 chain) | AWS billing | Set `AWS_REGION`; standard AWS creds (env / profile / SSO / IAM role); map IDs in `config/models.yaml` |
 | `openai` | API key | Per-token | Set `OPENAI_API_KEY` |
 
 ### Model aliases

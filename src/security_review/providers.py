@@ -12,6 +12,7 @@ Supported providers:
     claude:claude-sonnet-4-5    — Claude Max/Pro subscription via Agent SDK ($0)
     claude:claude-opus-4-7      — Claude Max/Pro subscription via Agent SDK ($0)
     anthropic:claude-sonnet-4-6     — Anthropic API key (per-token)
+    bedrock:<bedrock-model-id>      — AWS Bedrock (boto3 default credential chain, AWS billing)
     openai:gpt-5.5                  — OpenAI API key (per-token)
     codex:gpt-5.4                   — Codex app-server SDK (ChatGPT Plus/Pro subscription, $0)
 """
@@ -133,6 +134,20 @@ def build_model(model_string: str, *, llm_config: "LLMConfig"):
         from pydantic_ai.models.anthropic import AnthropicModel
         from security_review.model_providers import get_anthropic_provider, resolve_api_key
         inner = AnthropicModel(model_name, provider=get_anthropic_provider(resolve_api_key("anthropic")))
+
+    elif provider == "bedrock":
+        import os
+
+        from pydantic_ai.models.anthropic import AnthropicModel
+        from security_review.model_providers import get_bedrock_anthropic_provider
+        # Bedrock auth uses the boto3 default chain — no key resolution needed.
+        # AWS_REGION / AWS_DEFAULT_REGION pick the endpoint; AWS_PROFILE selects credentials.
+        aws_region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+        aws_profile = os.environ.get("AWS_PROFILE")
+        inner = AnthropicModel(
+            model_name,
+            provider=get_bedrock_anthropic_provider(aws_region, aws_profile),
+        )
 
     elif provider == "copilot":
         from security_review.copilot_model import CopilotModel

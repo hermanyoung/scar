@@ -22,3 +22,9 @@ anthropic:
 copilot:
   auth_mode: copilot_oauth
   # No env_var - CopilotModel handles auth via copilot CLI login
+
+bedrock:
+  auth_mode: aws_default
+  # No env_var — AsyncAnthropicBedrock resolves credentials via the boto3
+  # default chain (AWS_PROFILE, ~/.aws/credentials, SSO cache, IAM role).
+  # Set AWS_REGION (or AWS_DEFAULT_REGION) to choose the Bedrock endpoint.

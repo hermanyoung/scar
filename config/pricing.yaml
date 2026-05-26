@@ -53,3 +53,14 @@ anthropic:claude-opus-4-6:
 anthropic:claude-sonnet-4-6:
   input_per_token: 0.000003
   output_per_token: 0.000015
+
+# AWS Bedrock — billed via AWS account; per-token rates match direct Anthropic API.
+bedrock:claude-opus-4.6:
+  input_per_token: 0.000005
+  output_per_token: 0.000025
+bedrock:claude-sonnet-4.6:
+  input_per_token: 0.000003
+  output_per_token: 0.000015
+bedrock:claude-haiku-4.5:
+  input_per_token: 0.0000008
+  output_per_token: 0.000004
