@@ -35,6 +35,26 @@ def get_anthropic_provider(api_key: str):
     return AnthropicProvider(anthropic_client=client)
 
 
+@lru_cache(maxsize=2)
+def get_bedrock_anthropic_provider(aws_region: str | None, aws_profile: str | None):
+    """Create a PydanticAI AnthropicProvider backed by AWS Bedrock.
+
+    Credentials resolve via the boto3 default chain (AWS_ACCESS_KEY_ID env,
+    ~/.aws/credentials, SSO cache, IAM role). Cached by (region, profile).
+    """
+    from anthropic import AsyncAnthropicBedrock
+    from pydantic_ai.providers.anthropic import AnthropicProvider
+
+    client = AsyncAnthropicBedrock(aws_region=aws_region, aws_profile=aws_profile)
+    logger.info(
+        "provider.bedrock_ready",
+        auth_mode="aws_default",
+        region=aws_region,
+        profile=aws_profile,
+    )
+    return AnthropicProvider(anthropic_client=client)
+
+
 @lru_cache(maxsize=1)
 def get_openai_provider(api_key: str):
     """Create a PydanticAI OpenAIProvider with API key auth.

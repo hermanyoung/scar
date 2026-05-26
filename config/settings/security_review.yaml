@@ -81,6 +81,10 @@ llm:
       max_concurrent: 10         # httpx connection pooling handles concurrency natively.
       session_timeout: 120.0
       backoff_seconds: 5.0
+    bedrock:
+      max_concurrent: 10         # Bedrock applies per-account TPS quotas; tune to your limits.
+      session_timeout: 120.0
+      backoff_seconds: 5.0
     openai:
       max_concurrent: 10
       session_timeout: 120.0

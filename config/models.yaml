@@ -43,3 +43,10 @@ providers:
   copilot: {}
   openai: {}
   codex: {}
+  # AWS Bedrock — Claude is served under account/region-specific model IDs
+  # (typically cross-region inference profiles prefixed `us.` / `eu.` / `apac.` / `global.`).
+  # Look up IDs available in your account:  `aws bedrock list-inference-profiles`
+  # Add entries below mapping the canonical name to the Bedrock ID, e.g.:
+  #   "claude-sonnet-4.6": "us.anthropic.claude-sonnet-4-6"
+  # Pricing keys in config/pricing.yaml must match the canonical (left-hand) name.
+  bedrock: {}
