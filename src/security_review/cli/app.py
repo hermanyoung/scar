@@ -1,11 +1,47 @@
-"""Click CLI group and shared tree display for SCAR.
+"""Click CLI group and shared infrastructure for SCAR command modules.
 
-The `cli` group is defined here (not in __init__.py) to satisfy rule 001.3
-(no logic in __init__.py). Command modules import `cli` from here.
+The `cli` group, `PROJECT_ROOT`, and `_setup_logging` are defined here (not
+in __init__.py) to satisfy rule 001.3 (no logic in __init__.py) AND to avoid
+a circular import: command modules (review.py, tools.py, etc.) import from
+this module directly. None of them — and this module itself — ever import
+from `security_review.cli` (the package `__init__.py`), which is the
+aggregator that imports the command modules for registration. If a command
+module imported back from `security_review.cli`, that would be a real
+circular import relying on Python's partially-initialized-module import
+order rather than a genuine one-directional dependency.
 """
 from __future__ import annotations
 
 import click
+
+from security_review import MODULE_ROOT
+
+# Re-exported for command modules that need the repo root (test-rule
+# subprocess, reports dir, eval corpus path, etc.)
+PROJECT_ROOT = MODULE_ROOT
+
+
+def _setup_logging(verbose: bool, debug: bool, quiet: bool,
+                   json_logs: bool, no_file_log: bool) -> dict:
+    """Configure logging and return context dict for progress callbacks."""
+    if debug:
+        level = "DEBUG"
+    elif quiet:
+        level = "WARNING"
+    else:
+        level = "INFO"
+
+    show_console_logs = verbose or debug or json_logs
+
+    from security_review.logging import setup_logging
+    setup_logging(
+        level=level,
+        format_type="json" if json_logs else "console",
+        enable_console=show_console_logs,
+        enable_file_logging=not no_file_log,
+    )
+
+    return {"verbose": verbose, "debug": debug, "quiet": quiet}
 
 
 @click.group(invoke_without_command=True)

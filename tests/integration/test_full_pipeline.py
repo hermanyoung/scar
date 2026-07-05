@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from security_review.config_schema import SecurityReviewConfig
+from security_review.config import load_config
 from security_review.passes.inventory import run_inventory
 from security_review.passes.merge import run_merge
 from security_review.passes.state import PipelineState
@@ -19,7 +19,7 @@ from security_review.passes.state import PipelineState
 @pytest.mark.asyncio
 async def test_inventory_pass_on_vulnerable_python(vulnerable_python_app, tmp_path):
     """Pass 1 discovers files and assigns security weights."""
-    config = SecurityReviewConfig()
+    config = load_config()
     state = PipelineState(
         config=config,
         target_path=vulnerable_python_app,
@@ -47,7 +47,7 @@ async def test_inventory_excludes_pycache(tmp_path):
     (tmp_path / "__pycache__" / "mod.pyc").write_text("bytecode")
     (tmp_path / "app.py").write_text("print('hello')")
 
-    config = SecurityReviewConfig()
+    config = load_config()
     state = PipelineState(
         config=config,
         target_path=tmp_path,
@@ -65,7 +65,7 @@ async def test_inventory_excludes_pycache(tmp_path):
 @pytest.mark.asyncio
 async def test_merge_pass_produces_sarif(vulnerable_python_app, tmp_path):
     """Merge pass produces valid SARIF even with no SAST results."""
-    config = SecurityReviewConfig()
+    config = load_config()
     config.review.mode = "sast"
     config.review.output_sarif = "test-report.sarif"
     config.review.output_summary = "test-report.md"

@@ -453,6 +453,58 @@ def check_project_structure() -> list[CheckResult]:
 
 
 # ---------------------------------------------------------------------------
+# Check: Git hooks
+# ---------------------------------------------------------------------------
+
+def check_git_hooks() -> CheckResult:
+    _subsection("Git Hooks")
+
+    hooks_dir = SCRIPT_DIR / ".githooks"
+    if not hooks_dir.is_dir():
+        r = CheckResult(
+            "Git hooks path", Status.SKIP,
+            detail=".githooks/ directory not found -- skipping",
+            required=False,
+        )
+        _print_result(r)
+        return r
+
+    stdout, stderr, rc = _run_quiet(["git", "config", "core.hooksPath"])
+    if rc != 0:
+        r = CheckResult(
+            "Git hooks path", Status.ERROR, "",
+            detail="Not a git repository or git is unavailable",
+            required=False,
+        )
+        _print_result(r)
+        return r
+
+    configured = stdout.strip()
+    is_wired = configured and (SCRIPT_DIR / configured).resolve() == hooks_dir.resolve()
+
+    if is_wired:
+        r = CheckResult(
+            "Git hooks path", Status.OK,
+            detail=f"core.hooksPath = {configured}",
+        )
+        _print_result(r)
+        return r
+
+    detail = f"core.hooksPath is '{configured}'" if configured else "core.hooksPath is not set"
+    r = CheckResult(
+        "Git hooks path", Status.MISSING, "",
+        detail=(
+            f"{detail} -- .githooks/pre-commit and .githooks/commit-msg "
+            "never run (structural rules, code map, quality report, commit-msg lint)"
+        ),
+        fix_cmd="git config core.hooksPath .githooks",
+        required=True,
+    )
+    _print_result(r)
+    return r
+
+
+# ---------------------------------------------------------------------------
 # Check: editable install
 # ---------------------------------------------------------------------------
 
@@ -850,11 +902,15 @@ def main() -> int:
     struct_results = check_project_structure()
     all_results.extend(struct_results)
 
-    # 7. GitHub Copilot auth
+    # 7. Git hooks
+    hooks_result = check_git_hooks()
+    all_results.append(hooks_result)
+
+    # 8. GitHub Copilot auth
     copilot_result = check_copilot_auth()
     all_results.append(copilot_result)
 
-    # 8. LLM providers
+    # 9. LLM providers
     provider_results = check_providers()
     all_results.extend(provider_results)
 
@@ -902,6 +958,9 @@ def main_recheck(os_key: str) -> int:
 
     struct_results = check_project_structure()
     all_results.extend(struct_results)
+
+    hooks_result = check_git_hooks()
+    all_results.append(hooks_result)
 
     copilot_result = check_copilot_auth()
     all_results.append(copilot_result)

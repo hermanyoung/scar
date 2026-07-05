@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from security_review.cli import PROJECT_ROOT, _setup_logging, cli
+from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
 
 
 @cli.command("test-cwe")

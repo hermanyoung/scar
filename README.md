@@ -403,8 +403,8 @@ llm:
       session_timeout: 120.0
 
 sast:
-  opengrep_rules_path: "rules/opengrep"
-  gitleaks_config_path: "rules/gitleaks/.gitleaks.toml"
+  opengrep_rules_path: "config/rules/opengrep"
+  gitleaks_config_path: "config/rules/gitleaks/.gitleaks.toml"
   scanner_timeout_seconds: 300
 
 triage:
@@ -467,11 +467,11 @@ pytest tests/eval/ -v
 
 ### OpenGrep rule tests
 
-Every OpenGrep rule under `rules/opengrep/` has a companion test file with `ruleid:` and `ok:` annotations. To validate rules:
+Every OpenGrep rule under `config/rules/opengrep/` has a companion test file with `ruleid:` and `ok:` annotations. To validate rules:
 
 ```bash
 # Run OpenGrep's built-in test mode against all rules
-opengrep scan --test rules/opengrep/
+opengrep scan --test config/rules/opengrep/
 ```
 
 ---
@@ -489,46 +489,51 @@ python .security/scar.py review --target . --mode full
 ## Project Structure
 
 ```
-security-review/
+scar/
   scar.py                     # Main CLI entry point (click)
   setup.py                    # Environment setup & health check
   src/
     security_review/          # Core pipeline module
-      cli.py                  #   Typer CLI (alternative entry point)
-      passes/                 #   5-pass pipeline stages
-      agents/                 #   PydanticAI agent definitions (triage, holistic, config)
-      models/                 #   Pydantic output models
-      sarif/                  #   SARIF 2.1.0 loading, merging, taxonomy
-      tools/                  #   Subprocess runner + tool registry
-      reporting/              #   Report renderers (summary, full, json, csv)
-    code_analysis/            # Code intelligence (AST parsing, PageRank)
+      cli/                    #   Click CLI: app.py (group) + one module per command
+      passes/                 #   5-pass pipeline stages + orchestrator
+      agents/                 #   PydanticAI agent definitions (triage, holistic, config_review)
+      models/                 #   Pydantic output models (findings, inventory, config_review, report)
+      sarif/                  #   SARIF 2.1.0 loading, merging, taxonomy, tag normalisation
+      tools/                  #   Subprocess runner (sole subprocess caller) + tool registry
+      reporting/              #   Report renderers (summary, full, json, csv, terminal)
+    code_analysis/            # Code intelligence (AST parsing, PageRank, security weighting)
     code_quality/             # PyQuality Index scoring
   config/
-    settings/                 # App configuration YAML
+    settings/                 # App configuration YAML (security_review.yaml, logging.yaml)
     models.yaml               # Model aliases & provider overrides
     pricing.yaml              # LLM token pricing
     providers.yaml            # Auth config per provider
-    prompts/                  # LLM agent prompts (system, triage, holistic, config)
-  rules/
-    opengrep/                 # 40+ OpenGrep YAML rules with test files
-    gitleaks/                 # Secret scanning config
-    roslyn/                   # Roslyn analyzer settings
-  eval/                       # Vulnerable code samples with ground truth
+    prompts/                  # LLM agent system prompts (triage.md, config_review.md)
+    taxonomy/                 # CWE registry (cwe.yaml) — single source of truth for all checks
+    rules/                    # SAST tool rules
+      opengrep/                #   40+ OpenGrep YAML rules with test files
+      gitleaks/                #   Secret scanning config
+      roslyn/                  #   Roslyn analyzer settings
+    golden/                    # Golden fixture baselines for regression testing
+  eval/                       # Vulnerable code samples with ground truth (python/, csharp/, docker/)
   tests/
-    unit/                     # Unit tests (no external deps)
+    unit/                     # Unit tests (no external deps, no LLM calls)
     integration/              # Integration tests (needs tools installed)
-    eval/                     # Snapshot regression harness
+    regression/                # Golden fixture tests (real LLM calls)
+    eval/                       # Snapshot regression harness
   scripts/
-    benchmark_models.py       # Model accuracy benchmarking
-    test_providers.py         # Provider compatibility tests
-    check_rules.py            # Internal code rule checker
-    code_intel.py             # Structural analysis
-    code_map.py               # Code map generation
-    code_quality.py           # Standalone quality scoring
+    benchmark_cwes.py         # Per-CWE provider benchmarking against a reference target
+    benchmark_models.py        # Model accuracy benchmarking against the eval corpus
+    test_providers.py          # Provider compatibility tests
+    check_rules.py             # Internal code rule checker
+    code_intel.py               # Structural analysis
+    code_map.py                 # Code map generation
+    code_quality.py             # Standalone quality scoring
   var/
     output/                   # Review output: {date}-{target}-{run-id}/
     logs/                     # JSONL system logs (daily rotation)
   docs/                       # Architecture, plans, standards, research
+  .githooks/                  # pre-commit / commit-msg hooks (activate with: git config core.hooksPath .githooks)
 ```
 
 ---

@@ -36,8 +36,8 @@ async def run_merge(state: PipelineState) -> Path:
 
     output_dir = state.work_dir
     sarif_path = output_dir / state.config.review.output_sarif
-    summary_path = output_dir / state.config.review.output_summary
     triage_path = output_dir / state.config.review.output_triage
+    summary_path = output_dir / state.config.review.output_summary
 
     # Ensure output directories exist
     sarif_path.parent.mkdir(parents=True, exist_ok=True)
@@ -155,9 +155,15 @@ async def run_merge(state: PipelineState) -> Path:
     # Store report_data on state so CLI can access it for terminal output
     state.report_data = report_data
 
-    # Write configured report formats
+    # Write configured report formats. "summary" honours the configured/CLI
+    # filename (config.review.output_summary, resolved against work_dir like
+    # sarif_path/triage_path above); other formats use fixed names so
+    # multiple formats never overwrite each other's file.
     report_formats = state.report_formats
-    write_reports(report_data, report_formats, sarif_path.parent)
+    write_reports(
+        report_data, report_formats, sarif_path.parent,
+        summary_path=summary_path,
+    )
 
     # Write triage audit log
     triage_data = {

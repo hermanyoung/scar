@@ -50,3 +50,7 @@ packages = ["src/security_review", "src/code_analysis", "src/code_quality"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Prepend src/ to sys.path (mirrors scar.py's own sys.path.insert(0, ...) bootstrap)
+# so tests always exercise this checkout, never a stale global editable install
+# of a differently-located "security_review" package.
+pythonpath = ["src"]

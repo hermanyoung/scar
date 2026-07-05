@@ -204,11 +204,16 @@ def check_bare_except(path: Path, rel: str) -> list[Violation]:
 
 
 def check_todo_markers(path: Path, rel: str) -> list[Violation]:
-    """002.3 — No TODO/FIXME/HACK/XXX."""
+    """002.3 — No TODO/FIXME/HACK/XXX.
+
+    Excludes the "SR-XXX-NNN" rule-ID placeholder idiom (e.g. in docstrings
+    documenting the holistic finding ID format) — that XXX is a category
+    placeholder, not a stale-work marker.
+    """
     if not rel.startswith("src/security_review/"):
         return []
     violations = []
-    pattern = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b")
+    pattern = re.compile(r"\b(TODO|FIXME|HACK)\b|(?<!SR-)\bXXX\b")
     for i, line in enumerate(path.read_text().splitlines(), 1):
         if pattern.search(line):
             violations.append(Violation(

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from security_review.cli import _setup_logging, cli
+from security_review.cli.app import _setup_logging, cli
 
 
 @cli.command("quality")

@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import click
 
-from security_review.cli import PROJECT_ROOT, _setup_logging, cli
+from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
 
 
 @cli.command()
@@ -168,8 +168,13 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
             time_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
             click.echo(f"\n  Completed in {time_str}")
             click.echo(f"  Report: {sarif_path}")
-            for ext_name, ext in [("Summary", ".md"), ("Full", ".md"), ("JSON", ".json"), ("CSV", ".csv")]:
-                p = sarif_path.parent / f"security-report{ext}"
+            from security_review.reporting.dispatcher import FORMAT_FILENAMES
+            report_paths = {"Summary": work_dir / cfg.review.output_summary}
+            report_paths.update({
+                name: sarif_path.parent / FORMAT_FILENAMES[fmt]
+                for name, fmt in [("Full", "full"), ("JSON", "json"), ("CSV", "csv")]
+            })
+            for ext_name, p in report_paths.items():
                 if p.exists() and p != sarif_path:
                     click.echo(f"  {ext_name}: {p}")
             # Terminal findings display

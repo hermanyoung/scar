@@ -168,7 +168,7 @@ async def evaluate_model(
     from security_review.passes.inventory import run_inventory
     from security_review.passes.sast import run_sast
     from security_review.passes.holistic import run_holistic
-    from security_review.config_schema import SecurityReviewConfig
+    from security_review.config import load_config
     from security_review.budget import CostTracker
     from security_review.providers import build_model
     from security_review.sarif.loader import normalize_uri, extract_findings, get_result_location
@@ -198,7 +198,7 @@ async def evaluate_model(
         work_dir = PROJECT_ROOT / "var" / "tmp" / "benchmark"
         work_dir.mkdir(parents=True, exist_ok=True)
 
-        config = SecurityReviewConfig()
+        config = load_config()
         config.review.mode = "sast" if sast_only else "full"
         if not sast_only:
             config.llm.provider_model = model_string
@@ -269,7 +269,7 @@ async def evaluate_model(
         # Any finding on patched code is a false positive
         if entry.has_patched:
             patched_dir = entry.path / "patched"
-            patched_config = SecurityReviewConfig()
+            patched_config = load_config()
             patched_config.review.mode = "sast" if sast_only else "full"
             if not sast_only:
                 patched_config.llm.provider_model = model_string

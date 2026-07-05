@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from security_review.cli import PROJECT_ROOT, cli
+from security_review.cli.app import PROJECT_ROOT, cli
 
 
 @cli.command("reports")

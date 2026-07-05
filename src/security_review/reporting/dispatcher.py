@@ -33,13 +33,26 @@ def render_report(data: ReportData, fmt: str) -> str:
     return renderer(data)
 
 
-def write_reports(data: ReportData, formats: list[str], output_dir: Path) -> list[Path]:
+def write_reports(
+    data: ReportData,
+    formats: list[str],
+    output_dir: Path,
+    summary_path: Path | None = None,
+) -> list[Path]:
     """Render and write multiple report formats to the output directory.
+
+    Each format writes to its own filename (see FORMAT_FILENAMES) so that
+    requesting multiple formats together (e.g. --format all) never has one
+    format silently overwrite another's output.
 
     Args:
         data: Pre-processed report data.
         formats: List of format names to produce.
-        output_dir: Directory to write files to.
+        output_dir: Directory to write files to (used for "full"/"json"/"csv").
+        summary_path: Full path override for the "summary" format only
+            (wired to config.review.output_summary / --summary, resolved
+            against work_dir by the caller). Other formats always use
+            output_dir + their fixed FORMAT_FILENAMES entry.
 
     Returns:
         List of paths written.
@@ -49,8 +62,12 @@ def write_reports(data: ReportData, formats: list[str], output_dir: Path) -> lis
 
     for fmt in formats:
         content = render_report(data, fmt)
-        ext = FORMAT_EXTENSIONS.get(fmt, ".txt")
-        path = output_dir / f"security-report{ext}"
+        if fmt == "summary" and summary_path is not None:
+            path = summary_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            filename = FORMAT_FILENAMES.get(fmt, f"security-report.{fmt}")
+            path = output_dir / filename
         path.write_text(content, encoding="utf-8")
         written.append(path)
 
@@ -85,12 +102,14 @@ FORMATS: dict[str, Callable[[ReportData], str]] = {
     "csv": _render_csv,
 }
 
-# File extensions per format
-FORMAT_EXTENSIONS: dict[str, str] = {
-    "summary": ".md",
-    "full": ".md",
-    "json": ".json",
-    "csv": ".csv",
+# Output filename per format. "full" and "summary" both produce Markdown but
+# must not share a filename, or writing both (--format all) would have one
+# silently clobber the other.
+FORMAT_FILENAMES: dict[str, str] = {
+    "summary": "security-report.md",
+    "full": "security-report-full.md",
+    "json": "security-report.json",
+    "csv": "security-report.csv",
 }
 
 VALID_FORMATS = sorted(FORMATS.keys())
