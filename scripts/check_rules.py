@@ -323,6 +323,317 @@ def check_os_getenv_fallback(path: Path, rel: str) -> list[Violation]:
     return violations
 
 
+def check_untyped_kwargs(path: Path, rel: str) -> list[Violation]:
+    """002.5 — No untyped **kwargs in public functions."""
+    if not rel.startswith("src/security_review/"):
+        return []
+    if rel.endswith("logging.py") or "test_" in rel or "conftest" in rel:
+        return []
+    violations = []
+    pattern = re.compile(r"def [a-z]\w+\(.*\*\*kwargs")
+    for i, line in enumerate(path.read_text().splitlines(), 1):
+        if pattern.search(line):
+            violations.append(Violation(
+                "002.5", "error", rel, i,
+                "Untyped **kwargs in public function — use explicit params or TypedDict",
+            ))
+    return violations
+
+
+def check_config_schema_extra_forbid(path: Path, rel: str) -> list[Violation]:
+    """003.4 — Config schemas must use extra='forbid' to catch unknown keys."""
+    if rel != "src/security_review/config_schema.py":
+        return []
+    if not re.search(r"extra=.forbid.", path.read_text()):
+        return [Violation(
+            "003.4", "error", rel, 1,
+            "No extra='forbid' found — config schemas must reject unknown YAML keys",
+        )]
+    return []
+
+
+def check_hardcoded_pricing(path: Path, rel: str) -> list[Violation]:
+    """003.6 — No hardcoded pricing; must come from config/pricing.yaml.
+
+    Matches an actual literal value assigned to a pricing-shaped name (or a
+    bare dollar literal), not the mere presence of a field name — Pydantic
+    type annotations like `input_per_token: float` in budget.py's
+    ModelPricing schema are the correct place pricing is *typed*, not a
+    hardcoded value, and must not trip this check.
+    """
+    if not rel.startswith("src/security_review/"):
+        return []
+    violations = []
+    pattern = re.compile(r"(per_token|cost_per|price_per)\s*[:=]\s*[0-9]|\$[0-9]+\.[0-9]+")
+    for i, line in enumerate(path.read_text().splitlines(), 1):
+        if line.strip().startswith("#"):
+            continue
+        if pattern.search(line):
+            violations.append(Violation(
+                "003.6", "error", rel, i,
+                "Hardcoded pricing value — must come from config/pricing.yaml",
+            ))
+    return violations
+
+
+def _docstring_line_ranges(tree: ast.AST) -> set[int]:
+    """Line numbers covered by any module/class/function docstring in `tree`."""
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        body = node.body
+        if not body:
+            continue
+        first = body[0]
+        if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \
+                and isinstance(first.value.value, str):
+            end = first.end_lineno or first.lineno
+            lines.update(range(first.lineno, end + 1))
+    return lines
+
+
+# Provider adapters legitimately hardcode a fallback model_id used only when
+# the caller doesn't override it — the actual model always comes from
+# config/settings/security_review.yaml at call time. model_settings.py's
+# adaptive-thinking model-family table is capability detection, not model
+# selection. config_schema.py/providers.py are the config layer itself.
+_MODEL_STRING_EXEMPT_FILES = (
+    "config_schema.py", "copilot_model.py", "claude_model.py",
+    "codex_model.py", "model_settings.py", "providers.py",
+)
+
+
+def check_hardcoded_model_strings(path: Path, rel: str) -> list[Violation]:
+    """003.7 — No hardcoded model strings; must come from config."""
+    if not rel.startswith("src/security_review/"):
+        return []
+    if any(rel.endswith(f) for f in _MODEL_STRING_EXEMPT_FILES):
+        return []
+    if "test_" in rel or "conftest" in rel:
+        return []
+
+    text = path.read_text()
+    try:
+        docstring_lines = _docstring_line_ranges(ast.parse(text))
+    except SyntaxError:
+        docstring_lines = set()
+
+    violations = []
+    pattern = re.compile(r"(gpt-[0-9]|claude-|o[0-9]-mini)")
+    for i, line in enumerate(text.splitlines(), 1):
+        if i in docstring_lines:
+            continue
+        if line.strip().startswith("#") or "help=" in line or "examples.add(" in line:
+            continue
+        if pattern.search(line):
+            violations.append(Violation(
+                "003.7", "error", rel, i,
+                "Hardcoded model string — must come from config.llm.provider_model",
+            ))
+    return violations
+
+
+def check_cwe_id_validator(path: Path, rel: str) -> list[Violation]:
+    """004.1 — cwe_id fields must be normalised to CWE-NNN format.
+
+    findings.py uses a @field_validator (normalise_cwe_id) that auto-repairs
+    any input into CWE-NNN format rather than a rigid Field(pattern=...)
+    that would reject malformed LLM output — see the architecture overview's
+    "auto-repair, not reject" decision. This checks for that validator.
+    """
+    if rel != "src/security_review/models/findings.py":
+        return []
+    if not re.search(r'@field_validator\("cwe_id"', path.read_text()):
+        return [Violation(
+            "004.1", "error", rel, 1,
+            "No cwe_id field_validator — findings must normalise cwe_id to CWE-NNN format",
+        )]
+    return []
+
+
+def check_output_parser_return_types(path: Path, rel: str) -> list[Violation]:
+    """004.2 — output_parser functions must return Pydantic models, not str/dict.
+
+    Agents themselves deliberately use output_type=str (ADR-004/ADR-006) —
+    that is correct, not a violation. The actual safeguard is that
+    output_parser.py's parse_* functions, which extract structured data
+    from that text, are typed to return a Pydantic model (or None).
+    """
+    if rel != "src/security_review/output_parser.py":
+        return []
+    try:
+        tree = ast.parse(path.read_text())
+    except SyntaxError:
+        return []
+    violations = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or not node.name.startswith("parse_"):
+            continue
+        if node.returns is None:
+            continue
+        return_str = ast.unparse(node.returns)
+        if re.fullmatch(r"(str|dict)(\s*\|\s*None)?", return_str):
+            violations.append(Violation(
+                "004.2", "error", rel, node.lineno,
+                f"{node.name} returns {return_str} — must return a Pydantic model (or None)",
+            ))
+    return violations
+
+
+def check_sarif_version_2_1_0(path: Path, rel: str) -> list[Violation]:
+    """004.3 — SARIF output must be version 2.1.0."""
+    if rel != "src/security_review/sarif/merger.py":
+        return []
+    if not re.search(r"version.*2\.1\.0", path.read_text()):
+        return [Violation("004.3", "error", rel, 1, "merger.py does not set SARIF version 2.1.0")]
+    return []
+
+
+def check_sarif_uri_forward_slashes(path: Path, rel: str) -> list[Violation]:
+    """004.4 — SARIF artifactLocation.uri must use forward slashes, never backslashes.
+
+    Scoped to sarif/ and passes/sast.py, where SARIF URIs are actually
+    constructed — a blanket src/security_review/ scope would also match
+    unrelated Windows-path-string handling (e.g. cli/tools.py's
+    --language matching), which has nothing to do with SARIF output.
+    """
+    if not (rel.startswith("src/security_review/sarif/") or rel == "src/security_review/passes/sast.py"):
+        return []
+    violations = []
+    pattern = re.compile(r"os\.sep|os\.path\.sep")
+    for i, line in enumerate(path.read_text().splitlines(), 1):
+        if "replace(" in line:
+            continue  # e.g. .replace("\\", "/") is the correct normalisation pattern
+        if pattern.search(line):
+            violations.append(Violation(
+                "004.4", "error", rel, i,
+                "os.sep/os.path.sep in SARIF path handling — use forward slashes",
+            ))
+    return violations
+
+
+def check_taxonomy_injection_exists(path: Path, rel: str) -> list[Violation]:
+    """004.5 — SARIF output must inject CWE taxonomy."""
+    if rel != "src/security_review/sarif/taxonomy.py":
+        return []
+    if "inject_taxonomy" not in path.read_text():
+        return [Violation(
+            "004.5", "error", rel, 1,
+            "No inject_taxonomy() found — CWE taxonomy block would be missing from SARIF",
+        )]
+    return []
+
+
+def check_cwe_tag_normalisation_exists(path: Path, rel: str) -> list[Violation]:
+    """004.6 — CWE tags must be normalised to external/cwe/cwe-NNN format."""
+    if rel != "src/security_review/sarif/tags.py":
+        return []
+    if "external/cwe/cwe-" not in path.read_text():
+        return [Violation(
+            "004.6", "error", rel, 1,
+            "tags.py does not normalise to the external/cwe/cwe-NNN convention",
+        )]
+    return []
+
+
+def check_sarif_uri_normalization_called(path: Path, rel: str) -> list[Violation]:
+    """004.9 — SARIF URIs must be normalised to relative paths at SAST output time."""
+    if rel != "src/security_review/passes/sast.py":
+        return []
+    if "_normalize_sarif_uris" not in path.read_text():
+        return [Violation(
+            "004.9", "error", rel, 1,
+            "sast.py does not call _normalize_sarif_uris() — SARIF may leak absolute paths",
+        )]
+    return []
+
+
+# ── Repo-level checks (not per-file) ────────────────────────────────────────
+
+
+def check_env_gitignored() -> list[Violation]:
+    """003.2 — .env must be gitignored."""
+    gitignore = PROJECT_ROOT / ".gitignore"
+    if not gitignore.exists():
+        return [Violation("003.2", "error", ".gitignore", 1, ".gitignore file not found")]
+    if not re.search(r"^\.env$", gitignore.read_text(), re.MULTILINE):
+        return [Violation("003.2", "error", ".gitignore", 1, ".env is not gitignored")]
+    return []
+
+
+def check_yaml_settings_have_headers() -> list[Violation]:
+    """003.3 — All YAML config files must have a commented options header."""
+    violations = []
+    settings_dir = PROJECT_ROOT / "config" / "settings"
+    for f in sorted(settings_dir.glob("*.yaml")):
+        lines = f.read_text().splitlines()
+        if not lines or not lines[0].startswith("#"):
+            rel = str(f.relative_to(PROJECT_ROOT))
+            violations.append(Violation(
+                "003.3", "error", rel, 1, "Missing '#' options header at top of file",
+            ))
+    return violations
+
+
+def check_cwe_ids_in_taxonomy() -> list[Violation]:
+    """004.7 — All CWE IDs referenced in OpenGrep rules must exist in the taxonomy.
+
+    The taxonomy stores bare numeric YAML keys (e.g. "22":), not literal
+    "CWE-22" strings, so CWE numbers are compared numerically rather than
+    as literal substrings of the taxonomy file.
+    """
+    taxonomy_path = PROJECT_ROOT / "config" / "taxonomy" / "cwe.yaml"
+    rules_dir = PROJECT_ROOT / "config" / "rules" / "opengrep"
+    if not taxonomy_path.exists() or not rules_dir.exists():
+        return []
+
+    taxonomy_ids: set[str] = set()
+    for line in taxonomy_path.read_text().splitlines():
+        m = re.match(r'^"?(\d+)"?:', line)
+        if m:
+            taxonomy_ids.add(m.group(1))
+
+    violations = []
+    reported: set[str] = set()
+    for f in sorted(rules_dir.rglob("*.yaml")):
+        rel = str(f.relative_to(PROJECT_ROOT))
+        for m in re.finditer(r"CWE-(\d+)", f.read_text()):
+            cwe_num = m.group(1)
+            if cwe_num not in taxonomy_ids and cwe_num not in reported:
+                reported.add(cwe_num)
+                violations.append(Violation(
+                    "004.7", "error", rel, 1,
+                    f"CWE-{cwe_num} referenced in rules but missing from config/taxonomy/cwe.yaml",
+                ))
+    return violations
+
+
+def check_opengrep_rules_have_tests() -> list[Violation]:
+    """004.8 — Every OpenGrep rule must have a matching test file."""
+    rules_dir = PROJECT_ROOT / "config" / "rules" / "opengrep"
+    if not rules_dir.exists():
+        return []
+    violations = []
+    for f in sorted(rules_dir.rglob("*.yaml")):
+        candidates = [f.with_suffix(ext) for ext in (".py", ".cs", ".dockerfile")]
+        if not any(c.exists() for c in candidates):
+            rel = str(f.relative_to(PROJECT_ROOT))
+            violations.append(Violation(
+                "004.8", "error", rel, 1,
+                "No matching test file (.py/.cs/.dockerfile) with ruleid:/ok: annotations",
+            ))
+    return violations
+
+
+REPO_CHECKS = [
+    check_env_gitignored,
+    check_yaml_settings_have_headers,
+    check_cwe_ids_in_taxonomy,
+    check_opengrep_rules_have_tests,
+]
+
+
 ALL_CHECKS = [
     check_relative_imports,
     check_direct_logging,
@@ -340,6 +651,17 @@ ALL_CHECKS = [
     check_silent_exception_swallow,
     check_hardcoded_secrets,
     check_os_getenv_fallback,
+    check_untyped_kwargs,
+    check_config_schema_extra_forbid,
+    check_hardcoded_pricing,
+    check_hardcoded_model_strings,
+    check_cwe_id_validator,
+    check_output_parser_return_types,
+    check_sarif_version_2_1_0,
+    check_sarif_uri_forward_slashes,
+    check_taxonomy_injection_exists,
+    check_cwe_tag_normalisation_exists,
+    check_sarif_uri_normalization_called,
 ]
 
 
@@ -380,25 +702,36 @@ def main() -> int:
     args = parser.parse_args()
 
     files = get_all_source_files() if args.all else get_staged_py_files()
-    if not files:
+
+    per_file_checks = ALL_CHECKS
+    repo_checks = REPO_CHECKS
+    if args.rule:
+        per_file_checks = [c for c in ALL_CHECKS if args.rule in c.__doc__]
+        repo_checks = [c for c in REPO_CHECKS if args.rule in c.__doc__]
+        if not per_file_checks and not repo_checks:
+            print(f"No check matches rule {args.rule}")
+            return 1
+
+    if not files and not repo_checks:
         if not args.all:
             print("No staged Python files.")
         return 0
 
-    checks = ALL_CHECKS
-    if args.rule:
-        checks = [c for c in ALL_CHECKS if args.rule in c.__doc__]
-        if not checks:
-            print(f"No check matches rule {args.rule}")
-            return 1
+    if not files and not args.all:
+        print("No staged Python files — running repo-level checks only.")
 
     all_violations: list[Violation] = []
     for path in files:
         if not path.exists():
             continue
         rel = str(path.relative_to(PROJECT_ROOT))
-        for check_fn in checks:
+        for check_fn in per_file_checks:
             all_violations.extend(check_fn(path, rel))
+
+    # Repo-level checks (config/.gitignore/CWE-taxonomy invariants) always
+    # run — they don't depend on which Python files happen to be staged.
+    for repo_check_fn in repo_checks:
+        all_violations.extend(repo_check_fn())
 
     errors = [v for v in all_violations if v.severity == "error"]
     warnings = [v for v in all_violations if v.severity == "warning"]
@@ -414,7 +747,8 @@ def main() -> int:
             print(f"  {YEL}[{v.rule_id}]{RST} {v.file}:{v.line} — {v.message}")
 
     if not errors and not warnings:
-        print(f"{GRN}All {len(ALL_CHECKS)} rules passed across {len(files)} files.{RST}")
+        total_rules = len(per_file_checks) + len(repo_checks)
+        print(f"{GRN}All {total_rules} rule(s) passed across {len(files)} files.{RST}")
 
     if errors:
         print(f"\n{RED}Fix errors above.{RST}")

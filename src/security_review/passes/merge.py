@@ -139,6 +139,9 @@ async def run_merge(state: PipelineState) -> Path:
                     break
 
     # Write reports — triage counts derived from SARIF properties (single source of truth)
+    error_summaries = [
+        f"{e.pass_name}: {e.error_type}: {e.error}" for e in state.errors
+    ]
     report_data = extract_report_data(
         all_results,
         rule_cwe_map=rule_cwe_map,
@@ -147,6 +150,7 @@ async def run_merge(state: PipelineState) -> Path:
         mode=state.config.review.mode,
         provider=state.config.llm.provider_model,
         cost_usd=state.cost_tracker.total_spent,
+        errors=error_summaries,
     )
 
     # Attach coverage data from inventory
@@ -173,6 +177,10 @@ async def run_merge(state: PipelineState) -> Path:
         "total_findings": len(all_results),
         "cost": state.cost_tracker.to_audit_log(),
         "evidence": state.evidence.to_dict(),
+        "pass_failures": [
+            {"pass": e.pass_name, "error_type": e.error_type, "error": e.error, "fatal": e.fatal}
+            for e in state.errors
+        ],
     }
     if state.triage_result:
         triage_data["triage"] = state.triage_result.model_dump()
@@ -185,6 +193,7 @@ async def run_merge(state: PipelineState) -> Path:
         pass_number=merge_pass_number,
         finding_count=len(all_results),
         sarif_path=str(sarif_path),
+        pass_failures=len(state.errors),
     )
 
     return sarif_path

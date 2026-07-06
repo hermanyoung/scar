@@ -520,11 +520,52 @@ def check_editable_install() -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
+# Shared: configured LLM provider
+# ---------------------------------------------------------------------------
+
+def _get_configured_provider() -> str:
+    """Read llm.provider_model from config/settings/security_review.yaml.
+
+    Returns the full "provider:model" string. Falls back to the documented
+    default if the file is missing or malformed, logging why rather than
+    silently swallowing the error.
+    """
+    settings_path = SCRIPT_DIR / "config" / "settings" / "security_review.yaml"
+    default_provider = "copilot:claude-sonnet"
+    if not settings_path.exists():
+        return default_provider
+    try:
+        import yaml
+        with open(settings_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        return cfg.get("llm", {}).get("provider_model", default_provider)
+    except (yaml.YAMLError, OSError) as e:
+        print(f"  {_C.YELLOW}Warning: could not read {settings_path}: {e}{_C.RESET}")
+        return default_provider
+
+
+# ---------------------------------------------------------------------------
 # Check: GitHub Copilot authentication
 # ---------------------------------------------------------------------------
 
-def check_copilot_auth() -> CheckResult:
+def check_copilot_auth(provider: str) -> CheckResult:
+    """Only relevant when the configured provider is actually `copilot`.
+
+    Other providers (openai, anthropic, claude, codex) never touch GitHub
+    Copilot auth, so requiring `gh auth login` for them was a bug — every
+    non-copilot setup was reported as "not ready" regardless of whether it
+    actually worked.
+    """
     _subsection("GitHub Copilot Authentication")
+
+    if provider != "copilot":
+        r = CheckResult(
+            "GitHub Copilot Authentication", Status.SKIP,
+            detail=f"Configured provider is '{provider}', not copilot -- skipping",
+            required=False,
+        )
+        _print_result(r)
+        return r
 
     # Check if gh CLI is available
     gh_path = shutil.which("gh")
@@ -575,21 +616,9 @@ def check_copilot_auth() -> CheckResult:
 # Check: LLM provider availability
 # ---------------------------------------------------------------------------
 
-def check_providers() -> list[CheckResult]:
+def check_providers(configured_provider: str) -> list[CheckResult]:
     _subsection("LLM Provider Configuration")
     results = []
-
-    # Load configured provider from settings
-    settings_path = SCRIPT_DIR / "config" / "settings" / "security_review.yaml"
-    configured_provider = "copilot:claude-sonnet"
-    if settings_path.exists():
-        try:
-            import yaml
-            with open(settings_path, encoding="utf-8") as f:
-                cfg = yaml.safe_load(f) or {}
-            configured_provider = cfg.get("llm", {}).get("provider_model", configured_provider)
-        except Exception:
-            pass
 
     provider, _, model = configured_provider.partition(":")
     print(f"\n  Configured provider: {_C.BOLD}{configured_provider}{_C.RESET}")
@@ -906,12 +935,13 @@ def main() -> int:
     hooks_result = check_git_hooks()
     all_results.append(hooks_result)
 
-    # 8. GitHub Copilot auth
-    copilot_result = check_copilot_auth()
+    # 8. GitHub Copilot auth (only relevant if the configured provider is copilot)
+    configured_provider = _get_configured_provider()
+    copilot_result = check_copilot_auth(configured_provider.partition(":")[0])
     all_results.append(copilot_result)
 
     # 9. LLM providers
-    provider_results = check_providers()
+    provider_results = check_providers(configured_provider)
     all_results.extend(provider_results)
 
     # Fix phase
@@ -962,10 +992,11 @@ def main_recheck(os_key: str) -> int:
     hooks_result = check_git_hooks()
     all_results.append(hooks_result)
 
-    copilot_result = check_copilot_auth()
+    configured_provider = _get_configured_provider()
+    copilot_result = check_copilot_auth(configured_provider.partition(":")[0])
     all_results.append(copilot_result)
 
-    provider_results = check_providers()
+    provider_results = check_providers(configured_provider)
     all_results.extend(provider_results)
 
     ready = print_summary(all_results)

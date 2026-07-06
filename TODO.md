@@ -39,7 +39,7 @@
 
 ## Testing
 - [x] Complete Python eval suite with `expected.sarif`
-- [ ] Add CI workflow with subprocess-outside-runner structural check
+- [x] Add CI workflow with subprocess-outside-runner structural check — `.github/workflows/ci.yml` runs `check_rules.py --all` (enforces rules 001.4/001.5 subprocess isolation), `scar.py health-check`, and the full unit + integration suite on every push/PR to `main`.
 - [x] End-to-end test: `python scar.py review --target eval/ --mode full` — passed (54 findings, 14m37s, $3.87)
 - [x] Automated eval scorer (compare pipeline output against ground_truth.yaml)
 

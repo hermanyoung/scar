@@ -31,6 +31,8 @@ def render_terminal(data: ReportData, *, console: Console | None = None, max_fin
     if console is None:
         console = Console()
 
+    _print_pass_failures(console, data)
+
     if data.total == 0:
         console.print("\n  [dim]No findings.[/dim]")
         return
@@ -38,6 +40,19 @@ def render_terminal(data: ReportData, *, console: Console | None = None, max_fin
     _print_summary_panel(console, data)
     _print_findings_table(console, data, max_findings=max_findings)
     _print_coverage(console, data)
+
+
+def _print_pass_failures(console: Console, data: ReportData) -> None:
+    """Warn the operator that this is a partial report — some passes did not complete."""
+    if not data.errors:
+        return
+    console.print()
+    console.print(
+        f"  [bold red]⚠ PARTIAL RESULTS — {len(data.errors)} pass(es) failed.[/bold red] "
+        "[dim]Findings below reflect only the passes that completed.[/dim]"
+    )
+    for err in data.errors:
+        console.print(f"    [red]- {err}[/red]")
 
 
 def _print_summary_panel(console: Console, data: ReportData) -> None:

@@ -4,7 +4,7 @@
 
 This document defines how we write Python in this project. It complements the reference architecture generic standards (`docs/99-reference-architecture/07-core-python-coding-standards.md`) with project-specific conventions.
 
-Automated enforcement: `python scripts/check_rules.py --all` runs 16 checks from `docs/04-rules/*.jsonl`.
+Automated enforcement: `python scripts/check_rules.py --all` runs 31 checks from `docs/04-rules/*.jsonl` (2 of the 33 documented rules — 002.8 and 003.8 — are marked for manual review since "no silent fallback" requires human judgment, not a pattern match).
 
 ---
 

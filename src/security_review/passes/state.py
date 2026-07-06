@@ -31,6 +31,24 @@ def _noop_progress(pass_number: int, pass_name: str, status: str, detail: str) -
 
 
 @dataclass
+class PassError:
+    """A pass-level failure recorded by run_pipeline().
+
+    Distinct from is_fatal_error()'s per-item/per-batch use inside each pass
+    (triage.py, holistic.py, config_review.py already isolate individual
+    finding/CWE/batch failures there). This records a failure that escaped
+    an entire pass function, so the merge pass can still produce a report
+    from whatever completed, and surface the failure visibly instead of the
+    whole run silently producing nothing (Principle P6).
+    """
+
+    pass_name: str
+    error: str
+    error_type: str
+    fatal: bool
+
+
+@dataclass
 class PipelineState:
     """Carries inter-pass state through the 5-pass pipeline.
 
@@ -62,6 +80,7 @@ class PipelineState:
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
     cost_tracker: CostTracker = field(default_factory=CostTracker)
     evidence: EvidenceManifest = field(default_factory=EvidenceManifest)
+    errors: list[PassError] = field(default_factory=list)
 
     # Progress reporting
     on_progress: ProgressCallback = field(default=_noop_progress)

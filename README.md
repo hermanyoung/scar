@@ -128,6 +128,17 @@ python scar.py review --target . --config my-config.yaml
 | `--json-logs` | JSON log lines to stderr (for CI) |
 | `--no-file-log` | Disable file logging to `var/logs/` |
 
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Completed cleanly — all requested passes ran |
+| `1` | Failed before producing a report (config error, crash before merge) |
+| `2` | **Partial** — a report was written, but one or more passes failed and were skipped. Findings only reflect the passes that completed; see `triage.json`'s `pass_failures` and the report's "Pass Failures" section. |
+| `130` | Interrupted (Ctrl-C) |
+
+A pass failure does not discard prior passes' results — inventory and SAST findings (and any completed LLM passes) are always merged into the report, even if a later pass fails.
+
 ---
 
 ## Pipeline Modes

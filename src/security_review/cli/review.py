@@ -162,11 +162,23 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
     try:
         sarif_path = asyncio.run(run_pipeline(state))
         total_elapsed = _time.monotonic() - _pipeline_start
-        logger.info("pipeline.complete", sarif=str(sarif_path))
+        logger.info("pipeline.complete", sarif=str(sarif_path), pass_failures=len(state.errors))
+        minutes, seconds = divmod(int(total_elapsed), 60)
+        time_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+        if state.errors:
+            click.echo(
+                click.style(
+                    f"\n  ⚠ Completed in {time_str} with {len(state.errors)} pass(es) failed "
+                    "— partial results.",
+                    fg="red", bold=True,
+                ),
+                err=True,
+            )
+            for e in state.errors:
+                click.echo(click.style(f"    - {e.pass_name}: {e.error_type}: {e.error}", fg="red"), err=True)
         if not quiet:
-            minutes, seconds = divmod(int(total_elapsed), 60)
-            time_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
-            click.echo(f"\n  Completed in {time_str}")
+            if not state.errors:
+                click.echo(f"\n  Completed in {time_str}")
             click.echo(f"  Report: {sarif_path}")
             from security_review.reporting.dispatcher import FORMAT_FILENAMES
             report_paths = {"Summary": work_dir / cfg.review.output_summary}
@@ -203,6 +215,10 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
                                error_type=type(quality_err).__name__)
         else:
             click.echo(f"Report: {sarif_path}")
+        if state.errors:
+            # Distinct from 0 (clean) and 1 (crashed) — the run produced a
+            # report, but it is incomplete. CI/scripts can distinguish this.
+            raise SystemExit(2)
     except KeyboardInterrupt:
         logger.warning("pipeline.interrupted")
         click.echo("\nInterrupted.", err=True)

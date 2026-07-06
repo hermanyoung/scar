@@ -1,0 +1,62 @@
+name: CI
+
+# Server-side, unskippable gate for structural rules and tests. This is the
+# only enforcement in this repo that cannot be bypassed by --no-verify or a
+# missing/unwired local git hook (see .githooks/pre-commit).
+#
+# Deliberately does NOT run `python setup.py --check` as a hard gate: that
+# script also verifies GitHub Copilot OAuth (`gh auth login`), which is an
+# operator/workstation concern, not a code-correctness one, and no CI
+# runner has an authenticated interactive session. Requiring it here would
+# make CI permanently red regardless of code quality. Tool *availability*
+# (provider-agnostic) is covered by `scar.py health-check` instead.
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Go (for betterleaks)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Install project dependencies
+        run: pip install -e '.[dev]'
+
+      - name: Install betterleaks (required SAST tool)
+        run: |
+          go install github.com/zricethezav/betterleaks@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install opengrep (optional SAST tool, exercised by several integration tests)
+        run: pip install opengrep
+
+      - name: Structural code rules (subprocess isolation, import boundaries, fail-fast, etc.)
+        run: python scripts/check_rules.py --all
+
+      - name: SAST tool availability (provider-agnostic, no LLM auth required)
+        run: python scar.py health-check
+
+      - name: Unit tests
+        run: pytest tests/unit/ -v
+
+      - name: Integration tests
+        run: pytest tests/integration/ -v

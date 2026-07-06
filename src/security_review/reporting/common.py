@@ -71,6 +71,10 @@ class ReportData:
     # Coverage (set from PipelineState.coverage)
     coverage: CoverageReport | None = None
 
+    # Pass-level failures (set from PipelineState.errors) — non-empty means
+    # this is a partial report; some passes did not complete.
+    errors: list[str] = field(default_factory=list)
+
 
 # Triage verdict -> display label (shared by all renderers)
 TRIAGE_STATUS_DISPLAY = {
@@ -102,6 +106,7 @@ def extract_report_data(
     mode: str = "",
     provider: str = "",
     cost_usd: float = 0.0,
+    errors: list[str] | None = None,
 ) -> ReportData:
     """Extract ReportData from scored SARIF results.
 
@@ -191,4 +196,5 @@ def extract_report_data(
         triage_false_positive=triage_counts.get("FALSE_POSITIVE", 0),
         triage_needs_context=triage_counts.get("NEEDS_CONTEXT", 0),
         top_cwes=cwe_counts.most_common(10),
+        errors=errors or [],
     )

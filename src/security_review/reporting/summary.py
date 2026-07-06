@@ -20,6 +20,16 @@ def render_summary(data: ReportData) -> str:
         f"**LLM Cost:** ${data.cost_usd:.4f}\n",
     ]
 
+    # Partial-failure banner — this report may be incomplete.
+    if data.errors:
+        lines.append(
+            f"> ⚠ **PARTIAL RESULTS — {len(data.errors)} pass(es) failed.** "
+            "Findings below reflect only the passes that completed."
+        )
+        lines.append("\n## Pass Failures\n")
+        for err in data.errors:
+            lines.append(f"- {err}")
+
     # Priority bands
     lines.append("## Priority\n")
     for band, count in [("URGENT", data.urgent), ("ELEVATED", data.elevated),
