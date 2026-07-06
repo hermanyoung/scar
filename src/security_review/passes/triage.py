@@ -22,6 +22,7 @@ from security_review.agents.triage.agent import triage_agent
 from security_review.context_builder import format_context_window, read_file_content
 from security_review.errors import is_fatal_error
 from security_review.model_capabilities import supports_native_json, TRIAGE_FORMAT_MARKDOWN
+from security_review.models.degradation import Degradation
 from security_review.models.findings import TriagedFinding, TriageResult
 from security_review.model_settings import build_model_settings
 from security_review.output_parser import parse_triage_response
@@ -100,6 +101,15 @@ async def run_triage(state: PipelineState) -> None:
                 triaged=batch_start,
                 remaining=total_findings - batch_start,
             )
+            remaining = total_findings - batch_start
+            state.degrade(Degradation(
+                pass_name="triage", kind="budget_exhausted", subject="triage",
+                detail=f"budget ${state.config.llm.max_budget_usd:.2f} reached after {batch_start} of "
+                       f"{total_findings} findings — {remaining} findings remain Untriaged",
+                count=remaining,
+            ))
+            state.on_progress(3, "triage", "tool",
+                              f"budget exhausted — {remaining} of {total_findings} findings not triaged")
             break
 
         batch_end = min(batch_start + concurrency, total_findings)
@@ -184,6 +194,13 @@ async def run_triage(state: PipelineState) -> None:
             f"{f', {failed} failed' if failed else ''}"
             f" ({int(elapsed)}s{eta})",
         )
+
+    if failed:
+        state.degrade(Degradation(
+            pass_name="triage", kind="triage_call_failed", subject="triage",
+            detail=f"{failed} of {total_findings} triage calls failed — those findings remain Untriaged",
+            count=failed,
+        ))
 
     if all_triaged:
         state.triage_result = TriageResult(

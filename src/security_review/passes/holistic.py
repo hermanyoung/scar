@@ -27,6 +27,7 @@ from security_review.checks import CWECheck, load_cwe_checks, select_files_for_c
 from security_review.context_builder import inline_files
 from security_review.errors import is_fatal_error
 from security_review.model_capabilities import supports_native_json, HOLISTIC_FORMAT_MARKDOWN
+from security_review.models.degradation import Degradation
 from security_review.models.findings import HolisticFinding, HolisticReviewResult
 from security_review.model_settings import build_model_settings
 from security_review.output_parser import parse_holistic_response
@@ -160,6 +161,13 @@ async def run_holistic(state: PipelineState) -> None:
                 checks_completed=checks_completed,
                 checks_skipped=remaining,
             )
+            state.degrade(Degradation(
+                pass_name="holistic", kind="budget_exhausted", subject="holistic",
+                detail=f"budget reached — {remaining} of {total_checks} CWE checks never ran: "
+                       f"{', '.join('CWE-' + c.cwe_id for c, _ in runnable[batch_start:])}",
+                count=remaining,
+            ))
+            state.on_progress(4, "holistic", "tool", f"budget exhausted — {remaining} CWE checks skipped")
             break
 
         batch_end = min(batch_start + concurrency, total_checks)
@@ -225,6 +233,11 @@ async def run_holistic(state: PipelineState) -> None:
         for check, file_paths in failed_checks:
             if state.cost_tracker.would_exceed_budget(state.config.llm.max_budget_usd):
                 logger.warning("holistic.retry_budget_exhausted", cwe_id=check.cwe_id)
+                state.degrade(Degradation(
+                    pass_name="holistic", kind="budget_exhausted", subject=f"CWE-{check.cwe_id}",
+                    detail=f"budget reached before retry — CWE-{check.cwe_id} was NOT assessed",
+                    count=1,
+                ))
                 checks_failed += 1
                 continue
 
@@ -250,6 +263,12 @@ async def run_holistic(state: PipelineState) -> None:
                 # Second RETRY — give up on this check.
                 checks_failed += 1
                 logger.error("holistic.check_failed_after_retry", cwe_id=check.cwe_id)
+                state.degrade(Degradation(
+                    pass_name="holistic", kind="check_failed", subject=f"CWE-{check.cwe_id}",
+                    detail=f"check failed after retry — CWE-{check.cwe_id} ({check.short_name}) "
+                           f"was NOT assessed",
+                    count=1,
+                ))
 
     if all_files_reviewed:
         state.holistic_result = HolisticReviewResult(

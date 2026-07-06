@@ -12,6 +12,7 @@ from pathlib import Path
 import structlog
 
 from security_review.errors import SARIFError, ScannerError
+from security_review.models.degradation import Degradation
 from security_review.priority import build_exposure_index, score_finding
 from security_review.sarif.converter import convert_dotnet_vuln_to_sarif, convert_pip_audit_to_sarif, convert_sarif_v1_to_v2
 from security_review.sarif.loader import load_sarif, normalize_uri
@@ -47,12 +48,27 @@ async def run_sast(state: PipelineState) -> None:
         all_specs, file_paths, require_available=True
     )
 
+    progress = state.on_progress
+
+    applicable_any = resolve_tools_for_manifest(all_specs, file_paths, require_available=False)
+    missing = [s for s in applicable_any if not s.is_available()]
+    for spec in missing:
+        state.degrade(Degradation(
+            pass_name="sast", kind="tool_missing", subject=spec.name,
+            detail=f"binary '{spec.binary}' not found on PATH — {spec.name} did not run",
+        ))
+        progress(2, "sast", "tool", f"{spec.name}: NOT INSTALLED — skipped")
+
     if not applicable_specs:
         logger.warning("sast.no_tools", message="No applicable SAST tools found on PATH")
+        state.degrade(Degradation(
+            pass_name="sast", kind="tool_missing", subject="sast",
+            detail="no applicable SAST tools found on PATH — nothing was scanned",
+            count=len(applicable_any),
+        ))
         state.sast_sarif = merge_sarif([])
         return
 
-    progress = state.on_progress
     tool_names = [s.name for s in applicable_specs]
     logger.info("sast.tools_resolved", tools=tool_names)
     progress(2, "sast", "tool", f"running {len(tool_names)} tools: {', '.join(tool_names)}")
@@ -74,13 +90,23 @@ async def run_sast(state: PipelineState) -> None:
         spec = applicable_specs[i]
         if isinstance(doc, Exception):
             logger.error("sast.tool_exception", error=str(doc))
+            state.degrade(Degradation(
+                pass_name="sast", kind="tool_failed", subject=spec.name,
+                detail=f"{spec.name} produced no usable output — its findings are absent "
+                       f"(see var/logs/system.jsonl)",
+            ))
             progress(2, "sast", "tool", f"{spec.name}: failed")
         elif doc is not None:
             count = sum(len(r.get("results", [])) for r in doc.get("runs", []))
             progress(2, "sast", "tool", f"{spec.name}: {count} findings")
             valid_docs.append(doc)
         else:
-            progress(2, "sast", "tool", f"{spec.name}: skipped")
+            state.degrade(Degradation(
+                pass_name="sast", kind="tool_failed", subject=spec.name,
+                detail=f"{spec.name} produced no usable output — its findings are absent "
+                       f"(see var/logs/system.jsonl)",
+            ))
+            progress(2, "sast", "tool", f"{spec.name}: failed — no output")
 
     # Merge all SARIF documents
     merged = merge_sarif(valid_docs)

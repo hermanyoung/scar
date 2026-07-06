@@ -5,7 +5,7 @@ CWE breakdown, top 20 findings by priority.
 """
 from __future__ import annotations
 
-from security_review.reporting.common import ReportData, triage_status
+from security_review.reporting.common import ReportData, render_degradations_md, triage_status
 
 
 def render_summary(data: ReportData) -> str:
@@ -17,7 +17,8 @@ def render_summary(data: ReportData) -> str:
         f"**Mode:** {data.mode}",
         f"**Date:** {data.timestamp}",
         f"**Total Findings:** {data.total}",
-        f"**LLM Cost:** ${data.cost_usd:.4f}\n",
+        f"**LLM Cost:** ${data.cost_usd:.4f}",
+        f"**Coverage Gaps:** {len(data.degradations)}\n",
     ]
 
     # Partial-failure banner — this report may be incomplete.
@@ -50,6 +51,8 @@ def render_summary(data: ReportData) -> str:
         lines.append(f"- Confirmed: {data.triage_confirmed}")
         lines.append(f"- False Positive: {data.triage_false_positive}")
         lines.append(f"- Needs Context: {data.triage_needs_context}")
+
+    lines.extend(render_degradations_md(data.degradations))
 
     # CWEs
     if data.top_cwes:

@@ -75,6 +75,9 @@ class ReportData:
     # this is a partial report; some passes did not complete.
     errors: list[str] = field(default_factory=list)
 
+    # Coverage degradations (set from PipelineState.degradations)
+    degradations: list = field(default_factory=list)   # list[Degradation]
+
 
 # Triage verdict -> display label (shared by all renderers)
 TRIAGE_STATUS_DISPLAY = {
@@ -198,3 +201,15 @@ def extract_report_data(
         top_cwes=cwe_counts.most_common(10),
         errors=errors or [],
     )
+
+
+def render_degradations_md(degradations: list) -> list[str]:
+    """Markdown lines for the Coverage Gaps section. Empty list when clean."""
+    if not degradations:
+        return []
+    lines = ["\n## Coverage Gaps & Failures\n",
+             "The following parts of this review did NOT complete. "
+             "Absence of findings in these areas is NOT evidence of absence.\n"]
+    for d in degradations:
+        lines.append(f"- **[{d.pass_name}] {d.kind}** — {d.subject}: {d.detail}")
+    return lines

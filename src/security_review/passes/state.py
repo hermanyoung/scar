@@ -16,10 +16,11 @@ from security_review.config_schema import SecurityReviewConfig
 from security_review.evidence import EvidenceManifest
 from security_review.models.config_review import ConfigReviewResult
 from security_review.models.coverage import CoverageReport
+from security_review.models.degradation import Degradation
 from security_review.models.findings import HolisticReviewResult, TriageResult
 from security_review.reporting.common import ReportData
 from security_review.models.inventory import FileManifest
-from security_review.models.report import ToolResult
+from security_review.run_ledger import RunLedger
 from security_review.sarif.types import SarifDocument
 
 # Progress callback type: (pass_number, pass_name, status, detail)
@@ -65,7 +66,6 @@ class PipelineState:
 
     # Pass 2 outputs
     sast_sarif: SarifDocument | None = None
-    tool_results: list[ToolResult] = field(default_factory=list)
 
     # Pass 3 outputs
     triage_result: TriageResult | None = None
@@ -81,6 +81,8 @@ class PipelineState:
     cost_tracker: CostTracker = field(default_factory=CostTracker)
     evidence: EvidenceManifest = field(default_factory=EvidenceManifest)
     errors: list[PassError] = field(default_factory=list)
+    degradations: list[Degradation] = field(default_factory=list)
+    ledger: "RunLedger | None" = None
 
     # Progress reporting
     on_progress: ProgressCallback = field(default=_noop_progress)
@@ -96,3 +98,9 @@ class PipelineState:
     def output_dir(self) -> Path:
         """The output directory for this run (where SARIF, reports, and traces go)."""
         return (self.work_dir / self.config.review.output_sarif).parent
+
+    def degrade(self, d: Degradation) -> None:
+        """Record a coverage degradation and mirror it to the run ledger."""
+        self.degradations.append(d)
+        if self.ledger is not None:
+            self.ledger.append("degradation", **d.model_dump())

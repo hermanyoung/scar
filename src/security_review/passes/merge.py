@@ -13,6 +13,8 @@ from pathlib import Path
 
 import structlog
 
+from security_review import __version__
+from security_review.models.degradation import Degradation
 from security_review.models.findings import Severity
 from security_review.models.report import SecurityReport
 from security_review.passes.state import PipelineState
@@ -49,14 +51,16 @@ async def run_merge(state: PipelineState) -> Path:
     # Add invocation metadata so the SARIF is self-describing
     base_sarif["runs"][0].setdefault("invocations", [])
     base_sarif["runs"][0]["invocations"].append({
-        "executionSuccessful": True,
-        "commandLine": f"security-review --mode {state.config.review.mode} --target {state.target_path}",
+        "executionSuccessful": not state.degradations,
+        "commandLine": f"scar review --mode {state.config.review.mode} --target {state.target_path}",
         "properties": {
             "run_id": state.run_id,
             "target": str(state.target_path),
             "mode": state.config.review.mode,
             "provider": state.config.llm.provider_model,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "scar_version": __version__,
+            "degradations": [d.model_dump() for d in state.degradations],
         },
     })
 
@@ -114,6 +118,10 @@ async def run_merge(state: PipelineState) -> Path:
             inject_taxonomy(base_sarif, cwe_ids)
         except Exception as e:
             logger.error("merge.taxonomy_failed", error=str(e), error_type=type(e).__name__)
+            state.degrade(Degradation(
+                pass_name="merge", kind="taxonomy_failed", subject="sarif",
+                detail="CWE taxonomy injection failed — SARIF taxonomies block is missing",
+            ))
 
     # Final scoring: Severity x Confidence x Exposure — overwrites the temporary
     # pre-scores that sast.py set for triage filtering. Triage verdicts are now
@@ -155,6 +163,7 @@ async def run_merge(state: PipelineState) -> Path:
 
     # Attach coverage data from inventory
     report_data.coverage = state.coverage
+    report_data.degradations = list(state.degradations)
 
     # Store report_data on state so CLI can access it for terminal output
     state.report_data = report_data
@@ -177,6 +186,8 @@ async def run_merge(state: PipelineState) -> Path:
         "total_findings": len(all_results),
         "cost": state.cost_tracker.to_audit_log(),
         "evidence": state.evidence.to_dict(),
+        "scar_version": __version__,
+        "degradations": [d.model_dump() for d in state.degradations],
         "pass_failures": [
             {"pass": e.pass_name, "error_type": e.error_type, "error": e.error, "fatal": e.fatal}
             for e in state.errors

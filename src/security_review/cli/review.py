@@ -124,7 +124,7 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
             click.echo(f"\r      {detail}", nl=False)
         elif status == "tool":
             styled = detail
-            if "failed" in detail:
+            if "failed" in detail or "NOT INSTALLED" in detail:
                 styled = click.style(detail, fg="red")
             elif "skipped" in detail:
                 styled = click.style(detail, dim=True)
@@ -215,6 +215,10 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
                                error_type=type(quality_err).__name__)
         else:
             click.echo(f"Report: {sarif_path}")
+            if state.degradations:
+                click.echo(click.style(
+                    f"WARNING: {len(state.degradations)} coverage gap(s) — review is incomplete. "
+                    f"See 'Coverage Gaps & Failures' in the report.", fg="red"), err=True)
         if state.errors:
             # Distinct from 0 (clean) and 1 (crashed) — the run produced a
             # report, but it is incomplete. CI/scripts can distinguish this.

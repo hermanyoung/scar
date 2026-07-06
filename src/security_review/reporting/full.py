@@ -6,7 +6,7 @@ MODERATE, LOW with per-band counts.
 """
 from __future__ import annotations
 
-from security_review.reporting.common import ReportData, triage_status
+from security_review.reporting.common import ReportData, render_degradations_md, triage_status
 
 
 def render_full(data: ReportData) -> str:
@@ -19,7 +19,8 @@ def render_full(data: ReportData) -> str:
         f"**Provider:** {data.provider}",
         f"**Date:** {data.timestamp}",
         f"**Total Findings:** {data.total}",
-        f"**LLM Cost:** ${data.cost_usd:.4f}\n",
+        f"**LLM Cost:** ${data.cost_usd:.4f}",
+        f"**Coverage Gaps:** {len(data.degradations)}\n",
     ]
 
     # Summary counts
@@ -35,6 +36,8 @@ def render_full(data: ReportData) -> str:
         lines.append(f"\nTriage: {data.triage_confirmed} confirmed, "
                       f"{data.triage_false_positive} false positive, "
                       f"{data.triage_needs_context} needs context")
+
+    lines.extend(render_degradations_md(data.degradations))
 
     # Group findings by band
     # Filter by score — FPs have priority=0, naturally excluded from non-LOW bands

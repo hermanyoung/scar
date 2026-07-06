@@ -32,6 +32,8 @@ def render_terminal(data: ReportData, *, console: Console | None = None, max_fin
         console = Console()
 
     _print_pass_failures(console, data)
+    if data.degradations:
+        _print_degradations(console, data)
 
     if data.total == 0:
         console.print("\n  [dim]No findings.[/dim]")
@@ -53,6 +55,15 @@ def _print_pass_failures(console: Console, data: ReportData) -> None:
     )
     for err in data.errors:
         console.print(f"    [red]- {err}[/red]")
+
+
+def _print_degradations(console: Console, data: ReportData) -> None:
+    body = "\n".join(
+        f"[red]•[/red] [{d.pass_name}] {d.kind} — {d.subject}: {d.detail}"
+        for d in data.degradations
+    )
+    console.print()
+    console.print(Panel(body, title="⚠ Coverage Gaps & Failures", border_style="red"))
 
 
 def _print_summary_panel(console: Console, data: ReportData) -> None:

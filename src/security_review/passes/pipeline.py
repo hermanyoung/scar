@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 import structlog
 
 from security_review.errors import is_fatal_error
+from security_review.models.degradation import Degradation
 from security_review.passes.state import PassError, PipelineState, ProgressCallback
 
 logger = structlog.get_logger()
@@ -44,6 +45,11 @@ async def _run_pass(
     it via progress("failed", ...) instead of letting it propagate and
     silently discard every result from passes that already succeeded.
 
+    Also recorded as a Degradation (kind="pass_failed"): a whole-pass
+    failure is the most severe form of coverage loss, so it must flip
+    executionSuccessful to False in the SARIF invocation and be visible
+    to --fail-on-degraded, exactly like any narrower in-pass degradation.
+
     Returns True if the pass completed, False if it failed (callers should
     stop attempting subsequent passes, since they typically depend on this
     pass's output, but must still proceed to the merge step).
@@ -65,6 +71,11 @@ async def _run_pass(
             error=str(e),
             error_type=type(e).__name__,
             fatal=fatal,
+        ))
+        state.degrade(Degradation(
+            pass_name=pass_name, kind="pass_failed", subject=pass_name,
+            detail=f"pass '{pass_name}' failed outright ({type(e).__name__}: {e}) — "
+                   f"subsequent passes were skipped",
         ))
         progress(pass_number, pass_name, "failed", f"{type(e).__name__}: {e}")
         return False
@@ -141,6 +152,8 @@ async def run_pipeline(state: PipelineState) -> "Path":
             progress(3, "triage", "done",
                      f"{t.total_confirmed} confirmed, {t.total_false_positive} FP, "
                      f"{t.total_needs_context} needs context")
+        elif any(d.pass_name == "triage" for d in state.degradations):
+            progress(3, "triage", "done", "0 triaged — see coverage gaps")
         else:
             progress(3, "triage", "done", "skipped (no findings to triage)")
 
@@ -167,6 +180,8 @@ async def run_pipeline(state: PipelineState) -> "Path":
             t = state.triage_result
             progress(3, "triage", "done",
                      f"{t.total_confirmed} confirmed, {t.total_false_positive} FP")
+        elif any(d.pass_name == "triage" for d in state.degradations):
+            progress(3, "triage", "done", "0 triaged — see coverage gaps")
         else:
             progress(3, "triage", "done", "skipped")
 
