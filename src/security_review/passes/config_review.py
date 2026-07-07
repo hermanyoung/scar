@@ -85,13 +85,24 @@ async def run_config_review(state: PipelineState) -> None:
         logger.info("pipeline.pass_completed", pass_number=5, finding_count=0)
         return
 
+    user_prompt, included, omitted = _build_config_review_prompt(
+        file_paths, state.target_path, max_tokens=state.config.llm.max_tokens_per_batch,
+    )
+    if omitted:
+        state.degrade(Degradation(
+            pass_name="config_review", kind="files_omitted", subject="config_review",
+            detail=f"{len(omitted)} of {len(file_paths)} selected files did not fit the "
+                   f"token budget and were NOT reviewed: "
+                   f"{', '.join(omitted[:5])}{'…' if len(omitted) > 5 else ''}",
+            count=len(omitted),
+        ))
+
     # Native JSON: PydanticAI enforces ConfigReviewResult schema directly.
     # Prompted: append JSON format instruction, parse the text response.
     if native_json:
-        user_prompt = _build_config_review_prompt(file_paths, state.target_path)
         output_type = ConfigReviewResult
     else:
-        user_prompt = _build_config_review_prompt(file_paths, state.target_path) + "\n\n" + CONFIG_FORMAT_JSON
+        user_prompt = user_prompt + "\n\n" + CONFIG_FORMAT_JSON
         output_type = str
 
     logger.info(
@@ -109,7 +120,6 @@ async def run_config_review(state: PipelineState) -> None:
             model=model,
             model_settings=model_settings,
             output_type=output_type,
-            retries=state.config.llm.output_retries,
             usage_limits=UsageLimits(
                 request_limit=2,
                 total_tokens_limit=500_000,
@@ -117,11 +127,12 @@ async def run_config_review(state: PipelineState) -> None:
         )
 
         # Normalize output to ConfigReviewResult, overriding files_reviewed (P13).
+        # Uses `included`, not `file_paths`: omitted files were never seen by the LLM.
         output = result.output
         if isinstance(output, ConfigReviewResult):
-            config_result = output.model_copy(update={"files_reviewed": file_paths})
+            config_result = output.model_copy(update={"files_reviewed": included})
         else:
-            config_result = parse_config_review_response(output, files_reviewed=file_paths)
+            config_result = parse_config_review_response(output, files_reviewed=included)
             if config_result is None:
                 logger.warning("config_review.parse_failed", file_count=len(file_paths))
                 state.degrade(Degradation(
@@ -209,13 +220,21 @@ def _is_config_file(path: str) -> bool:
     return False
 
 
-def _build_config_review_prompt(file_paths: list[str], target_path) -> str:
-    """Build prompt with config file contents inlined (P14: no tool calls)."""
+def _build_config_review_prompt(
+    file_paths: list[str], target_path, max_tokens: int,
+) -> tuple[str, list[str], list[str]]:
+    """Build prompt with config file contents inlined (P14: no tool calls).
+
+    Returns (prompt, included, omitted) — omitted files did not fit the
+    token budget and were never seen by the LLM.
+    """
     from pathlib import Path
 
-    file_content, _, _ = inline_files(Path(target_path), file_paths, reserve_tokens=0)
+    file_content, included, omitted = inline_files(
+        Path(target_path), file_paths, max_tokens=max_tokens, reserve_tokens=0,
+    )
 
-    return (
+    prompt = (
         "Review the following configuration files for security issues.\n\n"
         "Look for: secrets/credentials, debug modes, permissive CORS, "
         "missing security headers, insecure Docker configurations, "
@@ -223,3 +242,4 @@ def _build_config_review_prompt(file_paths: list[str], target_path) -> str:
         "**Configuration files:**\n\n"
         + file_content
     )
+    return prompt, included, omitted

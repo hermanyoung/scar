@@ -307,7 +307,6 @@ async def _triage_single_finding(
         model=model,
         model_settings=model_settings,
         output_type=output_type,
-        retries=state.config.llm.output_retries,
         usage_limits=UsageLimits(
             request_limit=2,
             total_tokens_limit=200_000,

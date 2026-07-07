@@ -163,7 +163,7 @@ async def run_inventory(state: PipelineState) -> None:
     )
 
     # Build coverage report
-    state.coverage = _build_coverage_report(entries, languages)
+    state.coverage = _build_coverage_report(entries, languages, state.config.review.mode)
 
     logger.info(
         "pipeline.pass_completed",
@@ -256,9 +256,14 @@ _SEMANTIC_COVERAGE: dict[str, list[str]] = {
 
 
 def _build_coverage_report(
-    entries: list[FileEntry], languages: dict[str, int],
+    entries: list[FileEntry], languages: dict[str, int], mode: str,
 ) -> CoverageReport:
-    """Build coverage report from manifest entries and tool registry."""
+    """Build coverage report from manifest entries and tool registry.
+
+    `mode` gates the semantic (LLM) pass columns: holistic and config_review
+    only run in "full" mode, so claiming their coverage in "sast"/"sast-triage"
+    runs would misrepresent what this run actually did (WP2).
+    """
     specs = load_tool_specs()
 
     by_type: dict[str, FileCoverage] = {}
@@ -272,7 +277,7 @@ def _build_coverage_report(
                 if spec.name not in det_tools:
                     det_tools.append(spec.name)
 
-        sem_passes = _SEMANTIC_COVERAGE.get(lang, [])
+        sem_passes = _SEMANTIC_COVERAGE.get(lang, []) if mode == "full" else []
 
         by_type[lang] = FileCoverage(
             file_type=lang,

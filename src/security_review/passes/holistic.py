@@ -348,13 +348,21 @@ async def run_single_check(
         file_count=len(file_paths),
     )
 
-    prompt = _build_inline_prompt(
+    prompt, included, omitted = _build_inline_prompt(
         check=check,
         file_paths=file_paths,
         target_path=state.target_path,
         sast_sarif=state.sast_sarif or {},
         max_input_tokens=state.config.llm.max_tokens_per_batch,
     )
+    if omitted:
+        state.degrade(Degradation(
+            pass_name="holistic", kind="files_omitted", subject=f"CWE-{check.cwe_id}",
+            detail=f"{len(omitted)} of {len(file_paths)} selected files did not fit the "
+                   f"token budget and were NOT reviewed for CWE-{check.cwe_id}: "
+                   f"{', '.join(omitted[:5])}{'…' if len(omitted) > 5 else ''}",
+            count=len(omitted),
+        ))
 
     # Native JSON providers: PydanticAI enforces the HolisticReviewResult schema.
     # Prompted providers: append format instruction, output_parser extracts findings.
@@ -370,7 +378,6 @@ async def run_single_check(
         model=model,
         model_settings=model_settings,
         output_type=output_type,
-        retries=state.config.llm.output_retries,
         usage_limits=UsageLimits(
             request_limit=2,
             total_tokens_limit=500_000,
@@ -389,13 +396,15 @@ async def run_single_check(
     )
 
     # Normalize output — always override files_reviewed with our known list (P13).
+    # Uses `included`, not `file_paths`: files the token budget omitted from the
+    # prompt were never seen by the LLM and must not be claimed as reviewed (WP2).
     output = result.output
     if isinstance(output, HolisticReviewResult):
-        review_result = output.model_copy(update={"files_reviewed": file_paths})
+        review_result = output.model_copy(update={"files_reviewed": included})
     else:
-        review_result = parse_holistic_response(output, files_reviewed=file_paths)
+        review_result = parse_holistic_response(output, files_reviewed=included)
         if review_result is None:
-            review_result = HolisticReviewResult(findings=[], files_reviewed=file_paths)
+            review_result = HolisticReviewResult(findings=[], files_reviewed=included)
 
     # parse_failed=True when the LLM gave a non-empty response but we extracted nothing.
     # review_notes is set by the parser exactly when that happens.
@@ -431,10 +440,12 @@ def _build_inline_prompt(
     target_path: Path,
     sast_sarif: dict,
     max_input_tokens: int = 100_000,
-) -> str:
+) -> tuple[str, list[str], list[str]]:
     """Build a self-contained prompt with file contents and SAST findings inlined.
 
     Uses context_builder.inline_files for token-budget-aware file inclusion.
+    Returns (prompt, included, omitted) — the caller must record `included`,
+    not `file_paths`, as files_reviewed; `omitted` files never reached the LLM.
     """
     target_root = str(target_path.resolve())
 
@@ -485,6 +496,6 @@ def _build_inline_prompt(
         files_omitted=len(omitted),
     )
 
-    return header + sast_section + "\n**Source files:**\n" + file_content + instructions
+    return header + sast_section + "\n**Source files:**\n" + file_content + instructions, included, omitted
 
 
