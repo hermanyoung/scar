@@ -103,4 +103,9 @@ class PipelineState:
         """Record a coverage degradation and mirror it to the run ledger."""
         self.degradations.append(d)
         if self.ledger is not None:
-            self.ledger.append("degradation", **d.model_dump())
+            # d.model_dump() itself has a "kind" key (Degradation.kind) that
+            # would collide with append()'s own event-type "kind" positional
+            # argument ("degradation") — rename it on the way into the ledger.
+            fields = d.model_dump()
+            degradation_kind = fields.pop("kind")
+            self.ledger.append("degradation", degradation_kind=degradation_kind, **fields)

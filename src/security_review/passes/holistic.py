@@ -410,6 +410,11 @@ async def run_single_check(
     # review_notes is set by the parser exactly when that happens.
     parse_failed = not review_result.findings and review_result.review_notes is not None
 
+    if state.ledger is not None:
+        state.ledger.append("holistic_check", cwe_id=check.cwe_id,
+                             findings=len(review_result.findings), parse_failed=parse_failed,
+                             cumulative_usd=round(state.cost_tracker.total_spent, 4))
+
     logger.info(
         "agent.completed",
         agent_name="holistic",

@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time as _time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -100,6 +101,30 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
     work_dir = PROJECT_ROOT
     Path(output).parent.mkdir(parents=True, exist_ok=True)
 
+    # Parse report formats
+    if report_format == "all":
+        formats = ["summary", "full", "json", "csv"]
+    else:
+        formats = [f.strip() for f in report_format.split(",")]
+
+    effective_provider = provider or cfg.llm.provider_model
+
+    # Run manifest — written before Pass 1 starts, so it exists even if the
+    # pipeline never gets far enough to salvage a report (WP3).
+    out_dir = Path(output).parent
+    from security_review import __version__
+    from security_review.run_ledger import RunLedger
+    run_manifest = {
+        "run_id": run_id,
+        "target": str(target_path),
+        "mode": mode,
+        "provider": effective_provider,
+        "formats": formats,
+        "scar_version": __version__,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+    }
+    (out_dir / "run.json").write_text(json.dumps(run_manifest, indent=2), encoding="utf-8")
+
     from security_review.passes.pipeline import PipelineState, run_pipeline
 
     _pipeline_start = _time.monotonic()
@@ -132,12 +157,6 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
         elif status == "detail" and show_detail:
             click.echo(click.style(f"\n      ", dim=True) + click.style(detail, dim=True), nl=False)
 
-    # Parse report formats
-    if report_format == "all":
-        formats = ["summary", "full", "json", "csv"]
-    else:
-        formats = [f.strip() for f in report_format.split(",")]
-
     state = PipelineState(
         config=cfg,
         target_path=target_path,
@@ -146,9 +165,9 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
         on_progress=on_progress,
         report_formats=formats,
         trace_enabled=trace,
+        ledger=RunLedger(out_dir / "events.jsonl"),
     )
 
-    effective_provider = provider or cfg.llm.provider_model
     if not quiet:
         click.echo(f"\nSCAR — {mode} mode")
         click.echo(f"  Target:   {target_path}")
@@ -226,6 +245,7 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
     except KeyboardInterrupt:
         logger.warning("pipeline.interrupted")
         click.echo("\nInterrupted.", err=True)
+        _salvage(state, reason="interrupted by operator (Ctrl-C)")
         raise SystemExit(130)
     except Exception as e:
         logger.error("pipeline.failed", error=str(e), error_type=type(e).__name__)
@@ -235,4 +255,27 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
         else:
             click.echo(f"\nFailed: {e}", err=True)
             click.echo("Use --debug for full traceback.", err=True)
+        _salvage(state, reason=f"pipeline aborted: {type(e).__name__}: {e}")
         raise SystemExit(1)
+
+
+def _salvage(state, *, reason: str) -> None:
+    """Best-effort write of partial artifacts after an aborted run."""
+    from security_review.logging import get_logger
+    logger = get_logger(__name__)
+    if state.manifest is None:
+        return  # nothing ran — nothing to salvage
+    from security_review.models.degradation import Degradation
+    state.degrade(Degradation(
+        pass_name="pipeline", kind="run_aborted", subject="run",
+        detail=f"{reason} — artifacts below are PARTIAL",
+    ))
+    try:
+        from security_review.passes.merge import write_artifacts
+        path = write_artifacts(state)
+        click.echo(click.style(
+            f"Partial results salvaged (spend so far: ${state.cost_tracker.total_spent:.2f}): {path.parent}",
+            fg="yellow"), err=True)
+    except Exception as salvage_err:
+        logger.error("salvage.failed", error=str(salvage_err),
+                     error_type=type(salvage_err).__name__)

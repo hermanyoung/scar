@@ -156,6 +156,11 @@ async def run_config_review(state: PipelineState) -> None:
         )
 
         finding_count = len(config_result.findings) if config_result else 0
+
+        if state.ledger is not None:
+            state.ledger.append("config_review", findings=finding_count,
+                                 cumulative_usd=round(state.cost_tracker.total_spent, 4))
+
         logger.info(
             "agent.completed",
             agent_name="config_review",

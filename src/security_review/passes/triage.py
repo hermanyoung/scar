@@ -362,6 +362,11 @@ async def _triage_single_finding(
                 output=verdict.model_dump(),
             )
 
+        if state.ledger is not None:
+            state.ledger.append("triage_verdict", index=index, rule_id=rule_id,
+                                file=file_path, line=line, verdict=verdict.verdict.value,
+                                cumulative_usd=round(state.cost_tracker.total_spent, 4))
+
         return verdict
 
     return None

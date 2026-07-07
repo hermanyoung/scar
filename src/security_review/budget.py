@@ -74,7 +74,7 @@ class CostTracker:
             cumulative_usd=self.total_spent + cost,
         )
         self._calls.append(entry)
-        logger.debug(
+        logger.info(
             "budget.recorded",
             agent=agent_name,
             batch_id=batch_id,

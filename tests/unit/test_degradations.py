@@ -17,6 +17,7 @@ from security_review.reporting.common import ReportData, render_degradations_md
 from security_review.reporting.full import render_full
 from security_review.reporting.summary import render_summary
 from security_review.reporting.terminal import render_terminal
+from security_review.run_ledger import RunLedger
 
 
 def _build_state(tmp_path: Path) -> PipelineState:
@@ -148,3 +149,20 @@ async def test_merge_invocation_marks_execution_unsuccessful(tmp_path: Path):
         triage_data = json.load(f)
     assert triage_data["scar_version"] == __version__
     assert len(triage_data["degradations"]) == 1
+
+
+async def test_merge_mirrors_degradation_to_ledger(tmp_path: Path):
+    state = _build_state(tmp_path)
+    state.ledger = RunLedger(tmp_path / "events.jsonl")
+    state.degrade(Degradation(
+        pass_name="sast", kind="tool_missing", subject="bandit", detail="binary missing",
+    ))
+
+    await run_merge(state)
+
+    lines = (tmp_path / "events.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    event = json.loads(lines[0])
+    assert event["kind"] == "degradation"
+    assert event["degradation_kind"] == "tool_missing"
+    assert event["subject"] == "bandit"

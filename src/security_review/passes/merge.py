@@ -29,8 +29,13 @@ from security_review.sarif.taxonomy import inject_taxonomy
 logger = structlog.get_logger()
 
 
-async def run_merge(state: PipelineState) -> Path:
-    """Execute merge pass: produce final output files."""
+def write_artifacts(state: PipelineState) -> Path:
+    """Produce final output files (SARIF, reports, triage.json) synchronously.
+
+    Extracted from run_merge so the CLI's salvage handlers can call this
+    directly outside the event loop after an aborted run — write_artifacts
+    itself makes no LLM/network calls, so there is nothing to await.
+    """
 
     _MERGE_PASS_NUMBER = {"full": 6, "sast-triage": 4, "sast": 3}
     merge_pass_number = _MERGE_PASS_NUMBER.get(state.config.review.mode, 6)
@@ -208,6 +213,16 @@ async def run_merge(state: PipelineState) -> Path:
     )
 
     return sarif_path
+
+
+async def run_merge(state: PipelineState) -> Path:
+    """Execute merge pass: produce final output files.
+
+    Thin async wrapper around write_artifacts (sync) — kept so pipeline.py's
+    pass orchestration (which awaits every pass) does not need a special case
+    for merge specifically.
+    """
+    return write_artifacts(state)
 
 
 def _finding_to_sarif_result(finding) -> dict:
