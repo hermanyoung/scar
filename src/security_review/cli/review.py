@@ -46,8 +46,10 @@ from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
               help="Triage LOW findings too (default: only MEDIUM+).")
 @click.option("--trace", is_flag=True,
               help="Write per-agent trace files to var/output/{run}/traces/.")
+@click.option("--no-preflight", is_flag=True,
+              help="Skip the pre-run provider auth probe and pricing validation (LLM modes).")
 def review(target, mode, provider, budget, output, summary, report_format, config_path,
-           verbose, debug, quiet, json_logs, no_file_log, triage_all, trace):
+           verbose, debug, quiet, json_logs, no_file_log, triage_all, trace, no_preflight):
     """Run the security review pipeline."""
     ctx = _setup_logging(verbose, debug, quiet, json_logs, no_file_log)
     show_detail = ctx["verbose"] or ctx["debug"]
@@ -179,6 +181,15 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
                 provider=effective_provider)
 
     try:
+        if mode != "sast" and not no_preflight:
+            from security_review.preflight import probe_provider, validate_pricing
+            validate_pricing(cfg)
+            if not quiet:
+                click.echo("  Preflight: probing LLM provider... ", nl=False)
+            asyncio.run(probe_provider(cfg, state.cost_tracker))
+            if not quiet:
+                click.echo(click.style("ok", fg="green"))
+
         sarif_path = asyncio.run(run_pipeline(state))
         total_elapsed = _time.monotonic() - _pipeline_start
         logger.info("pipeline.complete", sarif=str(sarif_path), pass_failures=len(state.errors))

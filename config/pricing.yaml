@@ -8,35 +8,43 @@
 #     input_per_token:  float   # USD per input token
 #     output_per_token: float   # USD per output token
 #
-# Key format: "provider:model-id" matching the resolved model string
-# (after alias expansion from models.yaml).
+# Key format: "provider:model-id" in RESOLVED/WIRE form — the string
+# CostTracker.record() looks up AFTER alias expansion and provider-specific
+# override from config/models.yaml (resolve_model_name()), not the raw
+# --provider string an operator types. Copilot/claude wire IDs use dots
+# (claude-opus-4.6); anthropic/openai wire IDs use dashes (claude-opus-4-6) —
+# see config/models.yaml's providers.<name> overrides for why they differ.
 # Every model used must have an explicit entry — missing entries fail fast.
 # Add new entries here when onboarding a model — never hardcode in Python.
 # =============================================================================
 
-# Copilot models: $0 via GitHub subscription, but we track token-equivalent
-# cost for budget monitoring and comparison purposes.
-copilot:claude-opus:
+# Copilot models ($0 via subscription — token-equivalent monitoring)
+copilot:claude-opus-4.6:
   input_per_token: 0.000005
   output_per_token: 0.000025
-copilot:claude-sonnet:
+copilot:claude-sonnet-4.6:
   input_per_token: 0.000003
   output_per_token: 0.000015
+copilot:claude-haiku-4.5:
+  input_per_token: 0.000001
+  output_per_token: 0.000005
 copilot:gpt-5.5:
   input_per_token: 0.000002
   output_per_token: 0.000010
 
-# Claude Agent SDK: $0 via Max/Pro subscription.
-# Token-equivalent cost for budget monitoring.
-claude:claude-opus:
+# Claude Agent SDK ($0 via Max/Pro)
+claude:claude-opus-4-6:
   input_per_token: 0.000005
   output_per_token: 0.000025
-claude:claude-sonnet:
+claude:claude-sonnet-4-6:
   input_per_token: 0.000003
   output_per_token: 0.000015
+claude:claude-haiku-4-5:
+  input_per_token: 0.000001
+  output_per_token: 0.000005
 
-# Codex (ChatGPT subscription): $0 via Plus/Pro.
-codex:gpt:
+# Codex ($0 via ChatGPT subscription)
+codex:gpt-5.5:
   input_per_token: 0.000002
   output_per_token: 0.000010
 
@@ -47,9 +55,15 @@ openai:gpt-5.5:
 openai:gpt-5.4-mini:
   input_per_token: 0.0000004
   output_per_token: 0.0000016
+openai:o3:
+  input_per_token: 0.000002
+  output_per_token: 0.000008
 anthropic:claude-opus-4-6:
   input_per_token: 0.000005
   output_per_token: 0.000025
 anthropic:claude-sonnet-4-6:
   input_per_token: 0.000003
   output_per_token: 0.000015
+anthropic:claude-haiku-4-5:
+  input_per_token: 0.000001
+  output_per_token: 0.000005

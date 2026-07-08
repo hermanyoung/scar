@@ -319,7 +319,6 @@ async def _triage_single_finding(
         agent_name="triage",
         batch_id=f"triage-{index:03d}",
         model_requested=model_string,
-        model_responded=model_string,
         tokens_in=usage.request_tokens or 0,
         tokens_out=usage.response_tokens or 0,
     )

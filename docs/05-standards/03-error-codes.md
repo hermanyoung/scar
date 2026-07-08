@@ -69,7 +69,7 @@ All exceptions carry a `.code` attribute with the registered error code and a hu
 
 | Code | Exception | Meaning | Resolution |
 |------|-----------|---------|------------|
-| `LLM_AUTH_FAILED` | `LLMError` | API key invalid or expired | Check `.env` for correct API key |
+| `LLM_AUTH_FAILED` | `LLMError` | Provider preflight probe failed (auth/reachability) before Pass 1 — raised by `preflight.probe_provider()`, not just an expired API key | Check `.env` for correct API key, or `gh auth status` / `claude setup-token` for OAuth providers |
 | `LLM_OUTPUT_INVALID` | `LLMError` | LLM response failed Pydantic validation after retries | Check prompt; may need output_retries increase |
 | `LLM_BUDGET_EXCEEDED` | `LLMError` | UsageLimits token/request limit reached | Increase limits or reduce batch size |
 | `LLM_PROVIDER_ERROR` | `LLMError` | Provider returned 5xx or network error | Transient; retry or switch provider |

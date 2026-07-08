@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from security_review import MODULE_ROOT
 from security_review.errors import ConfigurationError
+from security_review.providers import resolve_model_name
 
 logger = structlog.get_logger(__name__)
 
@@ -45,16 +46,23 @@ class CostTracker:
         agent_name: str,
         batch_id: str,
         model_requested: str,
-        model_responded: str,
         tokens_in: int,
         tokens_out: int,
     ) -> CostEntry:
-        """Record a single LLM call and compute its cost."""
-        pricing = self._pricing.get(model_responded)
+        """Record a single LLM call and compute its cost.
+
+        Pricing is looked up by the *resolved* model string (alias expansion +
+        provider-specific override, e.g. 'copilot:claude-opus' -> 'copilot:claude-opus-4.6'
+        or 'anthropic:claude-opus' -> 'anthropic:claude-opus-4-6') so config/pricing.yaml
+        keys match what providers.py actually dispatches to, not the raw --provider string.
+        """
+        provider, _, name = model_requested.partition(":")
+        resolved = f"{provider}:{resolve_model_name(provider, name)}"
+        pricing = self._pricing.get(resolved)
         if pricing is None:
             raise ConfigurationError(
-                f"No pricing entry for model '{model_responded}' in config/pricing.yaml. "
-                f"Add an explicit '{model_responded}' entry.",
+                f"No pricing entry for model '{resolved}' (requested '{model_requested}') "
+                f"in config/pricing.yaml. Add an explicit '{resolved}' entry.",
                 code="SYS_CONFIG_INVALID",
             )
 
@@ -67,7 +75,7 @@ class CostTracker:
             agent=agent_name,
             batch_id=batch_id,
             model_requested=model_requested,
-            model_responded=model_responded,
+            model_responded=resolved,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             cost_usd=cost,
@@ -101,6 +109,15 @@ class CostTracker:
 
     def to_audit_log(self) -> list[dict]:
         return [c.model_dump() for c in self._calls]
+
+
+def pricing_entry_exists(model_string: str) -> bool:
+    """True if the resolved form of provider:model has a pricing entry."""
+    provider, _, name = model_string.partition(":")
+    if not name:
+        return False
+    resolved = f"{provider}:{resolve_model_name(provider, name)}"
+    return resolved in _load_pricing()
 
 
 def _load_pricing() -> dict[str, ModelPricing]:
