@@ -12,6 +12,27 @@ import click
 
 from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
 
+_BAND_AT_OR_ABOVE = {
+    "urgent":   ("URGENT",),
+    "elevated": ("URGENT", "ELEVATED"),
+    "moderate": ("URGENT", "ELEVATED", "MODERATE"),
+    "low":      ("URGENT", "ELEVATED", "MODERATE", "LOW"),
+}
+
+
+def resolve_exit_code(report_data, fail_on: str | None, fail_on_degraded: bool) -> int:
+    """0 = pass; 3 = findings at/above threshold; 4 = degraded run."""
+    if report_data is None:
+        return 0
+    if fail_on:
+        counts = {"URGENT": report_data.urgent, "ELEVATED": report_data.elevated,
+                  "MODERATE": report_data.moderate, "LOW": report_data.low}
+        if any(counts[b] > 0 for b in _BAND_AT_OR_ABOVE[fail_on]):
+            return 3
+    if fail_on_degraded and report_data.degradations:
+        return 4
+    return 0
+
 
 @cli.command()
 @click.option("--target", required=True, type=click.Path(exists=True),
@@ -48,9 +69,20 @@ from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
               help="Write per-agent trace files to var/output/{run}/traces/.")
 @click.option("--no-preflight", is_flag=True,
               help="Skip the pre-run provider auth probe and pricing validation (LLM modes).")
+@click.option("--fail-on", "fail_on", default=None,
+              type=click.Choice(["urgent", "elevated", "moderate", "low"]),
+              help="Exit 3 if any finding is at or above this priority band (for CI gating).")
+@click.option("--fail-on-degraded", is_flag=True,
+              help="Exit 4 if the review completed with coverage gaps (degradations).")
 def review(target, mode, provider, budget, output, summary, report_format, config_path,
-           verbose, debug, quiet, json_logs, no_file_log, triage_all, trace, no_preflight):
-    """Run the security review pipeline."""
+           verbose, debug, quiet, json_logs, no_file_log, triage_all, trace, no_preflight,
+           fail_on, fail_on_degraded):
+    """Run the security review pipeline.
+
+    Exit codes: 0 pass; 1 crash (partial artifacts salvaged when possible);
+    2 CLI usage error (click); 3 findings at/above --fail-on; 4 completed
+    with coverage gaps and --fail-on-degraded; 130 interrupted (Ctrl-C).
+    """
     ctx = _setup_logging(verbose, debug, quiet, json_logs, no_file_log)
     show_detail = ctx["verbose"] or ctx["debug"]
 
@@ -249,10 +281,14 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
                 click.echo(click.style(
                     f"WARNING: {len(state.degradations)} coverage gap(s) — review is incomplete. "
                     f"See 'Coverage Gaps & Failures' in the report.", fg="red"), err=True)
-        if state.errors:
-            # Distinct from 0 (clean) and 1 (crashed) — the run produced a
-            # report, but it is incomplete. CI/scripts can distinguish this.
-            raise SystemExit(2)
+
+        exit_code = resolve_exit_code(state.report_data, fail_on, fail_on_degraded)
+        if exit_code:
+            click.echo(click.style(
+                f"Exit {exit_code}: " +
+                ("findings at or above --fail-on threshold" if exit_code == 3
+                 else "review completed with coverage gaps"), fg="red"), err=True)
+            raise SystemExit(exit_code)
     except KeyboardInterrupt:
         logger.warning("pipeline.interrupted")
         click.echo("\nInterrupted.", err=True)
