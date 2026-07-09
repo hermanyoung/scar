@@ -184,7 +184,8 @@ async def run_holistic(state: PipelineState) -> None:
         cwe_ids = ", ".join(c.cwe_id for c, _ in batch)
         state.on_progress(
             4, "holistic", "counter",
-            f"[{done_count}/{total_checks}] CWE-{cwe_ids} ({int(elapsed)}s elapsed, {eta})",
+            f"[{done_count}/{total_checks}] CWE-{cwe_ids} "
+            f"({int(elapsed)}s elapsed, {eta}, ${state.cost_tracker.total_spent:.2f})",
         )
 
         batch_results = await _run_batch(batch, state, model, model_string, model_settings, native_json)
@@ -214,7 +215,7 @@ async def run_holistic(state: PipelineState) -> None:
             f"[{done_count}/{total_checks}] "
             f"{len(all_findings)} findings"
             f"{f', {len(failed_checks)} pending retry' if failed_checks else ''}"
-            f" ({int(elapsed)}s{eta})",
+            f" ({int(elapsed)}s{eta}, ${state.cost_tracker.total_spent:.2f})",
         )
 
     # -- Retry pass: re-run failed checks one at a time ------------------------

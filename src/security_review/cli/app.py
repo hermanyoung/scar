@@ -23,22 +23,37 @@ PROJECT_ROOT = MODULE_ROOT
 
 def _setup_logging(verbose: bool, debug: bool, quiet: bool,
                    json_logs: bool, no_file_log: bool) -> dict:
-    """Configure logging and return context dict for progress callbacks."""
-    if debug:
-        level = "DEBUG"
-    elif quiet:
-        level = "WARNING"
-    else:
-        level = "INFO"
+    """Configure logging and return context dict for progress callbacks.
 
-    show_console_logs = verbose or debug or json_logs
+    The console handler is always enabled — only its *level* changes with
+    verbosity — so logger.warning/error (budget exhaustion, missing tools,
+    failed checks) reach stderr by default instead of being file-only.
+    --quiet delivers on its "Errors only" promise instead of showing nothing;
+    the file audit trail stays at INFO regardless of console verbosity.
+
+    | flags               | root & file level | console level |
+    |---------------------|--------------------|---------------|
+    | (default)           | INFO               | WARNING       |
+    | -v / --json-logs    | INFO               | INFO          |
+    | --debug             | DEBUG              | DEBUG         |
+    | --quiet             | INFO               | ERROR         |
+    """
+    if debug:
+        level, console_level = "DEBUG", "DEBUG"
+    elif quiet:
+        level, console_level = "INFO", "ERROR"
+    elif verbose or json_logs:
+        level, console_level = "INFO", "INFO"
+    else:
+        level, console_level = "INFO", "WARNING"
 
     from security_review.logging import setup_logging
     setup_logging(
         level=level,
         format_type="json" if json_logs else "console",
-        enable_console=show_console_logs,
+        enable_console=True,
         enable_file_logging=not no_file_log,
+        console_level=console_level,
     )
 
     return {"verbose": verbose, "debug": debug, "quiet": quiet}

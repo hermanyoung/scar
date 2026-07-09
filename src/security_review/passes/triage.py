@@ -126,7 +126,8 @@ async def run_triage(state: PipelineState) -> None:
             eta = "estimating..."
         state.on_progress(
             3, "triage", "counter",
-            f"[{done_count}/{total_findings}] triaging finding {batch_start + 1}... ({int(elapsed)}s elapsed, {eta})",
+            f"[{done_count}/{total_findings}] triaging finding {batch_start + 1}... "
+            f"({int(elapsed)}s elapsed, {eta}, ${state.cost_tracker.total_spent:.2f})",
         )
 
         # Launch all findings in this batch concurrently
@@ -192,7 +193,7 @@ async def run_triage(state: PipelineState) -> None:
             f"{confirmed} confirmed, {fp} FP, "
             f"{needs_ctx} needs context"
             f"{f', {failed} failed' if failed else ''}"
-            f" ({int(elapsed)}s{eta})",
+            f" ({int(elapsed)}s{eta}, ${state.cost_tracker.total_spent:.2f})",
         )
 
     if failed:

@@ -70,6 +70,7 @@ def setup_logging(
     format_type: str | None = None,
     enable_console: bool | None = None,
     enable_file_logging: bool | None = None,
+    console_level: str | None = None,
 ) -> None:
     """Configure structured logging for the pipeline.
 
@@ -78,9 +79,15 @@ def setup_logging(
 
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Overrides config.
+            Governs the root logger and the file handler — the file audit trail
+            stays at this level regardless of what the console shows.
         format_type: Output format ('json' or 'console'). Overrides config.
         enable_console: Whether to enable console output. Overrides config.
         enable_file_logging: Whether to write to JSONL file. Overrides config.
+        console_level: Per-handler level for the console only (e.g. "WARNING"
+            at default verbosity so operators see failures without --verbose,
+            while the file handler still keeps everything at `level`). None
+            leaves the console handler at the root level.
     """
     config = _load_logging_config()
 
@@ -157,6 +164,8 @@ def setup_logging(
     if effective_console_enabled:
         console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setFormatter(console_formatter)
+        if console_level is not None:
+            console_handler.setLevel(getattr(logging, console_level.upper()))
         root_logger.addHandler(console_handler)
 
     # File handler — JSONL with daily rotation
