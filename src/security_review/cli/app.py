@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import click
 
-from security_review import MODULE_ROOT
+from security_review import MODULE_ROOT, __version__
 
 # Re-exported for command modules that need the repo root (test-rule
 # subprocess, reports dir, eval corpus path, etc.)
@@ -60,6 +60,7 @@ def _setup_logging(verbose: bool, debug: bool, quiet: bool,
 
 
 @click.group(invoke_without_command=True)
+@click.version_option(version=__version__, prog_name="scar")
 @click.pass_context
 def cli(ctx):
     """SCAR — Security Code AI Review."""

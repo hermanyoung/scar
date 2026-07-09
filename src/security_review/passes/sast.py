@@ -6,6 +6,7 @@ collects SARIF output, converts non-native formats, and merges results.
 from __future__ import annotations
 
 import asyncio
+import json
 import tempfile
 from pathlib import Path
 
@@ -79,9 +80,11 @@ async def run_sast(state: PipelineState) -> None:
     for spec in applicable_specs:
         if spec.target_type == "file":
             # File-targeted tools (e.g. hadolint) run once per matching file
-            tasks.append(_run_file_targeted_tool(spec, state.manifest, state.target_path, state.work_dir))
+            tasks.append(_run_file_targeted_tool(
+                spec, state.manifest, state.target_path, state.work_dir, run_id=state.run_id,
+            ))
         else:
-            tasks.append(_run_single_tool(spec, target, state.work_dir))
+            tasks.append(_run_single_tool(spec, target, state.work_dir, run_id=state.run_id))
     sarif_documents = await asyncio.gather(*tasks, return_exceptions=True)
 
     # Filter out None results (failed tools) and exceptions
@@ -146,6 +149,8 @@ async def _run_file_targeted_tool(
     manifest,
     target_path: Path,
     work_dir: Path,
+    *,
+    run_id: str,
 ) -> dict | None:
     """Run a file-targeted tool concurrently across all matching files, merge SARIF outputs."""
     matching_files = [
@@ -161,6 +166,7 @@ async def _run_file_targeted_tool(
             str((target_path / rel_path).resolve()),
             work_dir,
             suffix=rel_path.replace("/", "_"),
+            run_id=run_id,
         )
         for rel_path in matching_files
     ]
@@ -179,12 +185,27 @@ async def _run_single_tool(
     target_path: str,
     work_dir: Path,
     suffix: str = "",
+    *,
+    run_id: str,
 ) -> dict | None:
-    """Run a single tool and return its SARIF output, or None on failure."""
-    tmp_dir = work_dir / "var" / "tmp"
+    """Run a single tool and return its SARIF output, or None on failure.
+
+    Intermediate tool output lives under a run-scoped tmp directory
+    (var/tmp/<run_id>/) so two concurrent runs never cross-contaminate
+    each other's findings — merge.py's run_merge() deletes this directory
+    once the final report is written.
+    """
+    tmp_dir = work_dir / "var" / "tmp" / run_id
     tmp_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{spec.name}-{suffix}.sarif" if suffix else f"{spec.name}.sarif"
     output_path = str(tmp_dir / filename)
+
+    def _finalize(doc: dict) -> dict:
+        """Redact secrets on disk too, not just in the in-memory merged doc."""
+        if spec.redact_output:
+            doc = redact_sarif(doc)
+            Path(output_path).write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        return doc
 
     result = await run_tool(spec, target_path, output_path)
 
@@ -216,11 +237,11 @@ async def _run_single_tool(
     try:
         if spec.sarif_native:
             try:
-                return load_sarif(output_path)
+                return _finalize(load_sarif(output_path))
             except SARIFError as e:
                 if "version '1.0.0'" in str(e):
                     logger.info("sast.sarif_v1_upgrade", tool_name=spec.name)
-                    return convert_sarif_v1_to_v2(output_path)
+                    return _finalize(convert_sarif_v1_to_v2(output_path))
                 raise
 
         if spec.output_format == OutputFormat.JSON:
@@ -230,7 +251,7 @@ async def _run_single_tool(
                 return convert_dotnet_vuln_to_sarif(output_path)
 
         # Fallback: try loading as SARIF
-        return load_sarif(output_path)
+        return _finalize(load_sarif(output_path))
 
     except Exception as e:
         logger.error(

@@ -8,6 +8,7 @@ Produces:
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -216,13 +217,18 @@ def write_artifacts(state: PipelineState) -> Path:
 
 
 async def run_merge(state: PipelineState) -> Path:
-    """Execute merge pass: produce final output files.
+    """Execute merge pass: produce final output files, then clean up run tmp.
 
     Thin async wrapper around write_artifacts (sync) — kept so pipeline.py's
     pass orchestration (which awaits every pass) does not need a special case
-    for merge specifically.
+    for merge specifically. Tmp cleanup happens here, NOT in write_artifacts,
+    because _salvage() calls write_artifacts directly after an abort and must
+    keep var/tmp/<run_id>/ for forensics — only a clean run deletes it.
     """
-    return write_artifacts(state)
+    path = write_artifacts(state)
+    tmp_dir = state.work_dir / "var" / "tmp" / state.run_id
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+    return path
 
 
 def _finding_to_sarif_result(finding) -> dict:
