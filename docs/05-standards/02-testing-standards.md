@@ -23,13 +23,18 @@ tests/
     integration/
         __init__.py
         test_bandit_scan.py      # Requires bandit binary
-        test_gitleaks_scan.py    # Requires gitleaks binary
+        test_betterleaks_scan.py # Requires betterleaks binary
         test_opengrep_scan.py    # Requires opengrep binary
         test_triage_agent.py     # Agent with FunctionModel
         test_full_pipeline.py    # End-to-end pipeline (sast mode)
-    corpus/
+        test_eval_scorer.py      # Eval corpus scoring
+    regression/
         __init__.py
-        runner.py                # Snapshot regression harness
+        conftest.py               # Golden-fixture fixtures
+        test_golden.py            # Golden-fixture CWE detection regression
+    eval/
+        __init__.py
+        runner.py                 # Snapshot regression harness
 ```
 
 ---
@@ -176,6 +181,6 @@ test_walk_files_excludes_pycache
 ## What NOT to Test
 
 - LLM output quality (non-deterministic -- use prompt evaluation, not unit tests)
-- External tool installation (use `doctor` command for that)
+- External tool installation (use `python scar.py health-check` for that)
 - Exact log messages (test behavior, not logging strings)
 - Private functions directly (test through public API)

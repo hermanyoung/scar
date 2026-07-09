@@ -52,17 +52,13 @@ All exceptions carry a `.code` attribute with the registered error code and a hu
 
 | Code | Exception | Meaning | Resolution |
 |------|-----------|---------|------------|
-| `SCAN_TOOL_TIMEOUT` | `ScannerError` | Tool exceeded `scanner_timeout_seconds` | Increase timeout in config or reduce target scope |
-| `SCAN_TOOL_NOT_FOUND` | `ScannerError` | Binary not on PATH | Run `security-review doctor` to check tool availability |
 | `SCAN_TOOL_FAILED` | `ScannerError` | Tool returned unexpected exit code | Check stderr in tool result; may need tool update |
-| `SCAN_OUTPUT_MISSING` | `ScannerError` | Tool ran but produced no output file | Check tool spec `output_capture` setting |
 
 ### SARIF_* -- SARIF Processing
 
 | Code | Exception | Meaning | Resolution |
 |------|-----------|---------|------------|
 | `SARIF_PARSE_FAILED` | `SARIFError` | JSON parse error or invalid SARIF structure | Check tool output; may be corrupt or wrong format |
-| `SARIF_VERSION_INVALID` | `SARIFError` | SARIF version is not 2.1.0 | Tool may need `--sarif-version` flag |
 | `SARIF_CONVERT_FAILED` | `SARIFError` | pip-audit or dotnet-vuln JSON conversion failed | Check raw tool output format |
 
 ### LLM_* -- LLM Provider
@@ -70,19 +66,17 @@ All exceptions carry a `.code` attribute with the registered error code and a hu
 | Code | Exception | Meaning | Resolution |
 |------|-----------|---------|------------|
 | `LLM_AUTH_FAILED` | `LLMError` | Provider preflight probe failed (auth/reachability) before Pass 1 — raised by `preflight.probe_provider()`, not just an expired API key | Check `.env` for correct API key, or `gh auth status` / `claude setup-token` for OAuth providers |
-| `LLM_OUTPUT_INVALID` | `LLMError` | LLM response failed Pydantic validation after retries | Check prompt; may need output_retries increase |
-| `LLM_BUDGET_EXCEEDED` | `LLMError` | UsageLimits token/request limit reached | Increase limits or reduce batch size |
-| `LLM_PROVIDER_ERROR` | `LLMError` | Provider returned 5xx or network error | Transient; retry or switch provider |
 
 ### SYS_* -- System Configuration
 
 | Code | Exception | Meaning | Resolution |
 |------|-----------|---------|------------|
-| `SYS_CONFIG_INVALID` | `ConfigurationError` | YAML config failed Pydantic validation | Check config against `config_schema.py` |
-| `SYS_CONFIG_MISSING` | `ConfigurationError` | Required config file not found | Ensure `config/settings/` files exist |
+| `SYS_CONFIG_INVALID` | `ConfigurationError` | YAML config failed Pydantic validation, or a config/taxonomy/pricing file is missing or malformed | Check config against `config_schema.py`; verify the referenced file exists |
 | `SYS_CONFIGURATION_ERROR` | `ConfigurationError` | Generic configuration problem | Check error message for specifics |
-| `SYS_PROMPT_MISSING` | `ConfigurationError` | Prompt file not found in `config/prompts/` | Ensure prompt markdown files are present |
-| `SYS_CWE_REGISTRY_MISSING` | `ConfigurationError` | `taxonomy/cwe.yaml` not found | Ensure taxonomy files are present |
+| `SYS_CWE_NOT_FOUND` | `ConfigurationError` | `config/taxonomy/cwe.yaml` not found, or not a YAML mapping | Ensure the taxonomy file exists and is valid YAML |
+| `SYS_SECRET_MISSING` | `ConfigurationError` | Required API key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) not set | Set it in the environment or `config/.env` |
+| `SYS_DEPENDENCY_MISSING` | `ConfigurationError` | Required Python package or CLI absent (e.g. `codex-auth`, Codex CLI) | Install the missing dependency (see the error message for the exact command) |
+| `SYS_TARGET_NOT_FOUND` | `ConfigurationError` | `--target` path does not exist | Check the path passed to `--target` |
 
 ---
 

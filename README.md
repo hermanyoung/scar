@@ -63,6 +63,17 @@ brew install opengrep betterleaks hadolint trivy
 python setup.py --check
 ```
 
+### Provider credentials
+
+API-key providers (`anthropic:`, `openai:`) read their keys from `config/.env` (gitignored, never committed). OAuth providers (`copilot:`, `claude:`) authenticate via `gh auth login` / `claude setup-token` instead — no keys needed in `.env`.
+
+```bash
+cp config/.env.example config/.env
+# then edit config/.env and fill in only the providers you actually use
+```
+
+`python scar.py health-check` reports whether the configured provider's auth is ready (see the "auth: `<provider>`" row) without making any network calls.
+
 ---
 
 ## Running a Security Review
@@ -115,13 +126,18 @@ python scar.py review --target . --config my-config.yaml
 | `--target PATH` | Path to codebase root (required) |
 | `--mode MODE` | `full` / `sast` / `sast-triage` (default: `full`) |
 | `--provider STR` | LLM provider:model (e.g. `copilot:claude-opus-4.6`) |
-| `--budget FLOAT` | Max LLM spend in USD |
+| `--budget FLOAT` | Max LLM spend in USD (0 = unlimited) |
 | `--output PATH` | Output SARIF path (default: auto-generated under `var/output/`) |
 | `--summary PATH` | Output markdown summary path |
 | `--format FMT` | Report format: `summary`, `full`, `json`, `csv`, `all` (comma-separated) |
 | `--config PATH` | Override config YAML path |
 | `--triage-all` | Triage LOW findings too (default: MODERATE+ only, score ≥ 0.20) |
 | `--trace` | Write per-agent trace files to `var/output/{run}/traces/` |
+| `--exclude GLOB` | fnmatch glob (relative path) to exclude from the review, repeatable (e.g. `--exclude 'vendor/*'`) |
+| `--include GLOB` | Restrict the review to matching globs, repeatable |
+| `--no-preflight` | Skip the pre-run provider auth probe and pricing validation (`full`/`sast-triage` modes only) |
+| `--fail-on BAND` | Exit 3 if any finding is at or above this priority band: `urgent`/`elevated`/`moderate`/`low` (for CI gating) |
+| `--fail-on-degraded` | Exit 4 if the review completed with coverage gaps (degradations) |
 | `-v` / `--verbose` | Show batch/tool detail and structlog output |
 | `--debug` | DEBUG-level logging + full tracebacks |
 | `--quiet` | Errors only — suppress all progress output |
@@ -132,12 +148,14 @@ python scar.py review --target . --config my-config.yaml
 
 | Code | Meaning |
 |------|---------|
-| `0` | Completed cleanly — all requested passes ran |
-| `1` | Failed before producing a report (config error, crash before merge) |
-| `2` | **Partial** — a report was written, but one or more passes failed and were skipped. Findings only reflect the passes that completed; see `triage.json`'s `pass_failures` and the report's "Pass Failures" section. |
+| `0` | Pass — completed cleanly, no `--fail-on`/`--fail-on-degraded` threshold triggered |
+| `1` | Crash — failed before producing a report, or aborted mid-run (partial artifacts salvaged when possible; see "Partial results salvaged" on stderr) |
+| `2` | CLI usage error (click) — e.g. an invalid option value |
+| `3` | Findings at or above the `--fail-on` threshold |
+| `4` | Completed, but with coverage gaps (degradations) and `--fail-on-degraded` was set |
 | `130` | Interrupted (Ctrl-C) |
 
-A pass failure does not discard prior passes' results — inventory and SAST findings (and any completed LLM passes) are always merged into the report, even if a later pass fails.
+A pass failure or crash does not discard prior passes' results — inventory and SAST findings (and any completed LLM passes) are salvaged and merged into the report even if a later pass fails or the run is interrupted. Coverage gaps (missing tools, failed checks, budget cutoffs, etc.) are always recorded as degradations and rendered in every report format, regardless of whether `--fail-on-degraded` is set — the flag only controls whether they affect the exit code.
 
 ---
 
@@ -145,7 +163,7 @@ A pass failure does not discard prior passes' results — inventory and SAST fin
 
 | Mode | Passes Run | LLM Required | Use Case |
 |------|-----------|-------------|----------|
-| `sast` | 1 (Inventory) + 2 (SAST) + Merge | No | Fast deterministic scan, CI gating |
+| `sast` | 1 (Inventory) + 2 (SAST) + Merge | No | Fast deterministic scan; combine with `--fail-on` for CI gating |
 | `sast-triage` | 1 + 2 + 3 (Triage) + Merge | Yes | SAST with false-positive filtering |
 | `full` | 1 + 2 + 3 + 4 (Holistic) + 5 (Config) + Merge | Yes | Complete security review |
 
@@ -438,6 +456,7 @@ Configured in `config/providers.yaml`:
 | `copilot` | GitHub Copilot OAuth | $0 | `gh auth login` + `pip install github-copilot-sdk` |
 | `anthropic` | API key | Per-token | Set `ANTHROPIC_API_KEY` |
 | `openai` | API key | Per-token | Set `OPENAI_API_KEY` |
+| `codex` | ChatGPT Plus/Pro OAuth | $0 | `codex` CLI auth (`pip install codex-auth`) |
 
 ### Model aliases
 

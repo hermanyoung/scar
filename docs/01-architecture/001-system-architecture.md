@@ -3,40 +3,38 @@
 ## Directory Layout
 
 ```
-security-review/
+scar/
 ├── scar.py                         # CLI entry point
 ├── pyproject.toml                   # Package config + dependencies
 ├── config/
 │   ├── .env                         # API keys (gitignored)
+│   ├── .env.example                 # Template for config/.env
+│   ├── models.yaml                  # Model alias + provider-override registry
 │   ├── settings/
 │   │   ├── security_review.yaml     # Pipeline configuration
 │   │   └── logging.yaml             # Logging configuration
 │   ├── providers.yaml               # Provider auth config
-│   ├── pricing.yaml                 # LLM token pricing
-│   └── prompts/                     # Agent system prompts
-│       ├── system.md
-│       ├── triage.md
-│       ├── holistic/
-│       │   ├── csharp.md
-│       │   └── python.md
-│       └── config_review.md
-├── taxonomy/
-│   ├── cwe.yaml                     # CWE registry (single source of truth)
-│   ├── cwe-top25-2024.yaml
-│   ├── owasp-top10-2021.yaml
-│   └── bandit-cwe-map.yaml
-├── rules/
-│   ├── opengrep/                    # OpenGrep YAML rules + test files
-│   ├── gitleaks/.gitleaks.toml
-│   └── roslyn/                      # C# Roslyn analyzer config
+│   ├── pricing.yaml                 # LLM token pricing (resolved/wire-form keys)
+│   ├── golden/                      # Golden fixture baselines for regression tests
+│   ├── prompts/                     # Agent system prompts (holistic uses inline
+│   │   │                            # prompts built in code, not files here)
+│   │   ├── triage.md
+│   │   └── config_review.md
+│   ├── taxonomy/
+│   │   ├── cwe.yaml                 # CWE registry (single source of truth)
+│   │   └── bandit-cwe-map.yaml
+│   └── rules/
+│       ├── opengrep/                # OpenGrep YAML rules + test files
+│       ├── gitleaks/.gitleaks.toml
+│       └── roslyn/                  # C# Roslyn analyzer config
 ├── src/security_review/             # Python source
-├── tests/                           # pytest suite
-├── corpus/                          # Vulnerable code samples for testing
+├── tests/                           # pytest suite (unit/, integration/, regression/, eval/)
+├── eval/                            # Vulnerable code samples for evaluation/regression testing
 ├── scripts/                         # Utility scripts
 ├── var/                             # Runtime output (gitignored)
-│   ├── output/                      # SARIF, summary, triage.json
+│   ├── output/                      # SARIF, summary, triage.json, run.json, events.jsonl
 │   ├── logs/                        # JSONL structured logs
-│   └── tmp/                         # Intermediate tool output
+│   └── tmp/                         # Intermediate tool output (run-scoped: tmp/<run_id>/)
 └── docs/
 ```
 

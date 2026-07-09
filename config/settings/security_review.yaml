@@ -48,7 +48,9 @@ llm:
   output_retries: 3
   max_budget_usd: 100            # Safety net for runaway agents. 0 = unlimited.
   max_tokens_per_batch: 150000
-  concurrency: 1                 # Pass-level: how many agent calls dispatched concurrently.
+  # Pass-level: how many agent calls dispatched concurrently.
+  # Effective parallelism = min(this, providers.<name>.max_concurrent).
+  concurrency: 2
 
   # Anthropic-specific: prompt caching (90% savings on repeated system prompts).
   # All 26 CWE checks share the same system prompt — checks 2-26 hit cache.
@@ -65,11 +67,16 @@ llm:
   # null = provider default (typically 1.0 for Claude, 1.0 for GPT).
   # 0.0  = fully deterministic, reproducible across runs (recommended for CI/benchmarks).
   # 0.2  = low variance, occasional novel findings.
-  # Per-provider overrides available under providers.<name>.temperature below.
+  # ProviderConfig has no per-provider temperature override — this single
+  # value applies to every provider that respects temperature (ADR-002:
+  # the Copilot SDK ignores it and hardcodes 0.1 server-side regardless).
   temperature: 0.2
 
   # Per-provider capacity settings.
   # Each provider has different rate limits and transport characteristics.
+  # session_timeout/backoff_seconds are currently honored by the copilot
+  # adapter only — claude/codex/anthropic/openai adapters do not read them
+  # (plan 018 explicitly deferred wiring them everywhere; see AGENTS.md).
   providers:
     copilot:
       max_concurrent: 2          # Copilot API rate-limits aggressively. 2 is safe.

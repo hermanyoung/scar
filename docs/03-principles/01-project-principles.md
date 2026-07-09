@@ -186,14 +186,12 @@ This means:
 
 ### P11: Budget Enforcement via PydanticAI UsageLimits
 
-**Do not build custom budget enforcement in Python. Use PydanticAI's `UsageLimits` on every `agent.run()` call.**
-
-`CostTracker` in `budget.py` is for audit logging only -- it records what was spent. It does not enforce limits. Enforcement is delegated to PydanticAI, which handles token counting, request limits, and retry budgets natively.
+**Budget enforcement is two-layer.** PydanticAI's `UsageLimits` caps each individual call (request count, per-call tokens). Cumulative USD enforcement across the run is implemented by `CostTracker.would_exceed_budget()` in `budget.py`, checked before every batch in triage, holistic, and config review. `max_budget_usd` in config **is enforced** -- when cumulative spend reaches it, remaining batches are skipped and a `budget_exhausted` degradation is recorded and rendered in every report. Overshoot is bounded by one in-flight batch (`llm.concurrency` calls). `CostTracker.record()` also logs each call for the `triage.json` audit trail.
 
 This means:
-- Every `agent.run()` call passes `usage_limits=UsageLimits(request_limit=N, total_tokens_limit=N)`.
-- `CostTracker.record()` logs the cost after each call for the `triage.json` audit trail.
-- `max_budget_usd` in config is informational -- it does not gate execution (PydanticAI gates on tokens).
+- Every `agent.run()` call passes `usage_limits=UsageLimits(request_limit=N, total_tokens_limit=N)` to cap that single call.
+- `CostTracker.would_exceed_budget()` is checked before every batch in `triage.py`, `holistic.py`, and `config_review.py` -- when true, a `budget_exhausted` degradation is recorded and the pass stops dispatching new batches.
+- `max_budget_usd: 0` (or `--budget 0`) means unlimited -- the cumulative check is skipped entirely.
 
 ---
 
