@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import json as json_mod
+import shutil
 from pathlib import Path
 
 import click
 
 from security_review.cli.app import PROJECT_ROOT, cli
+from security_review.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @cli.command("reports")
@@ -14,9 +18,12 @@ from security_review.cli.app import PROJECT_ROOT, cli
 @click.option("--limit", "-n", default=20, help="Max runs to show.")
 @click.option("--show", "show_run_id", default=None, help="Show full report for a run ID.")
 @click.option("--compare", "compare_ids", nargs=2, default=None, help="Compare two run IDs (e.g. --compare id1 id2).")
+@click.option("--prune-incomplete", "prune_incomplete", is_flag=True,
+              help="Delete run directories with no security-report.md.")
+@click.option("--yes", is_flag=True, help="Skip confirmation prompt for --prune-incomplete.")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed output.")
 @click.option("--debug", is_flag=True, help="DEBUG-level logging.")
-def reports(target, limit, show_run_id, compare_ids, verbose, debug):
+def reports(target, limit, show_run_id, compare_ids, prune_incomplete, yes, verbose, debug):
     """List, view, and compare security review reports."""
     if show_run_id:
         _reports_show(show_run_id)
@@ -28,6 +35,10 @@ def reports(target, limit, show_run_id, compare_ids, verbose, debug):
     output_dir = PROJECT_ROOT / "var" / "output"
     if not output_dir.exists():
         click.echo("No reports found.")
+        return
+
+    if prune_incomplete:
+        _reports_prune_incomplete(output_dir, skip_confirm=yes)
         return
 
     runs = sorted(output_dir.iterdir(), reverse=True)
@@ -61,7 +72,8 @@ def reports(target, limit, show_run_id, compare_ids, verbose, debug):
                     break
             # CWE-862 (Missing Authorization) + CWE-863 (Incorrect Authorization) count
             authz = str(text.count("CWE-862") + text.count("CWE-863"))
-            status = click.style("complete", fg="green")
+            status = (click.style("salvaged", fg="yellow") if _is_salvaged(run_dir)
+                      else click.style("complete", fg="green"))
         else:
             total = "-"
             authz = "-"
@@ -70,6 +82,40 @@ def reports(target, limit, show_run_id, compare_ids, verbose, debug):
         click.echo(f"  {run_id:<12} {date:<12} {target_name:<30} {total:>8}  {authz:>5}  {status}")
 
     click.echo()
+
+
+def _is_salvaged(run_dir: Path) -> bool:
+    """True if this run's triage.json records a run_aborted degradation."""
+    triage_path = run_dir / "triage.json"
+    if not triage_path.exists():
+        return False
+    try:
+        data = json_mod.loads(triage_path.read_text(encoding="utf-8"))
+        return any(d.get("kind") == "run_aborted" for d in data.get("degradations", []))
+    except (OSError, ValueError, KeyError) as e:
+        logger.warning("reports.triage_json_unreadable", run=run_dir.name, error=str(e))
+        return False
+
+
+def _reports_prune_incomplete(output_dir: Path, *, skip_confirm: bool) -> None:
+    """Delete run directories with no security-report.md (never completed a merge)."""
+    incomplete = [
+        d for d in output_dir.iterdir()
+        if d.is_dir() and not (d / "security-report.md").exists()
+    ]
+    if not incomplete:
+        click.echo("No incomplete run directories found.")
+        return
+
+    if not skip_confirm and not click.confirm(
+        f"Delete {len(incomplete)} incomplete run dir(s) under var/output?"
+    ):
+        click.echo("Aborted.")
+        return
+
+    for d in incomplete:
+        shutil.rmtree(d)
+        click.echo(f"Deleted {d.name}")
 
 
 def _reports_show(run_id: str) -> None:
@@ -107,7 +153,11 @@ def _reports_compare(run_a: str, run_b: str) -> None:
     def load_findings(run_dir: Path) -> set[tuple[str, str, int]]:
         sarif_path = run_dir / "security-report.sarif"
         if not sarif_path.exists():
-            return set()
+            click.echo(
+                f"Run {run_dir.name.split('-')[-1]} has no SARIF (incomplete run) — cannot compare.",
+                err=True,
+            )
+            raise SystemExit(1)
         with open(sarif_path) as f:
             sarif = json_mod.load(f)
         findings: set[tuple[str, str, int]] = set()
