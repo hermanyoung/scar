@@ -120,6 +120,17 @@ async def run_sast(state: PipelineState) -> None:
     # Normalize all URIs to relative paths (SAST tools produce absolute paths)
     _normalize_sarif_uris(merged, target)
 
+    # Apply user exclude/include filters to SAST results too. Directory-scanning
+    # tools (bandit, opengrep, trivy) are invoked against the raw target path
+    # and never go through the inventory manifest that exclude/include
+    # otherwise gates for LLM passes — without this, --exclude/--include would
+    # silently have no effect in --mode sast (WP9).
+    _filter_excluded_results(
+        merged,
+        tuple(state.config.review.exclude),
+        tuple(state.config.review.include),
+    )
+
     # Redact secrets from betterleaks/gitleaks output
     merged = redact_sarif(merged)
 
@@ -278,6 +289,35 @@ def _normalize_sarif_uris(sarif: dict, target_root: str) -> None:
                 artifact = phys.get("artifactLocation", {})
                 if "uri" in artifact:
                     artifact["uri"] = normalize_uri(artifact["uri"], target_root)
+
+
+def _filter_excluded_results(
+    sarif: dict, exclude: tuple[str, ...], include: tuple[str, ...],
+) -> None:
+    """Drop SARIF results whose file URI is excluded, or not matched by include.
+
+    Mirrors passes/inventory.py's exclude/include glob semantics (fnmatch on
+    the relative POSIX URI, already normalized by _normalize_sarif_uris)
+    so --exclude/--include apply uniformly across the pipeline.
+    """
+    if not exclude and not include:
+        return
+
+    import fnmatch
+
+    for run in sarif.get("runs", []):
+        kept = []
+        for result in run.get("results", []):
+            locs = result.get("locations", [{}])
+            uri = ""
+            if locs:
+                uri = locs[0].get("physicalLocation", {}).get("artifactLocation", {}).get("uri", "")
+            if any(fnmatch.fnmatch(uri, pat) for pat in exclude):
+                continue
+            if include and not any(fnmatch.fnmatch(uri, pat) for pat in include):
+                continue
+            kept.append(result)
+        run["results"] = kept
 
 
 def _prescore_for_triage_filter(sarif: dict, exposure_index: dict[str, float]) -> None:

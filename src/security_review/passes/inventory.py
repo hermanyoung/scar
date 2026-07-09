@@ -17,7 +17,7 @@ logger = structlog.get_logger()
 EXCLUDE_DIRS = {
     "obj", "bin", "Migrations", "__pycache__", ".venv", "venv",
     "node_modules", ".git", ".vs", ".idea", "dist", "build",
-    ".mypy_cache", ".pytest_cache", ".tox", "eggs", "*.egg-info",
+    ".mypy_cache", ".pytest_cache", ".tox", "eggs",
 }
 
 # File patterns to exclude
@@ -92,6 +92,8 @@ _CHARS_PER_TOKEN = 4
 def discover_files(
     target_path: Path,
     max_size: int = 1_048_576,
+    exclude: tuple[str, ...] = (),
+    include: tuple[str, ...] = (),
 ) -> list[FileEntry]:
     """Discover source files, detect languages, and compute security weights.
 
@@ -101,13 +103,16 @@ def discover_files(
     Args:
         target_path: Resolved root directory to scan.
         max_size: Skip files larger than this (bytes).
+        exclude: fnmatch globs (relative paths) to exclude. Default empty —
+            existing callers are unaffected.
+        include: when non-empty, only matching relative paths are kept.
 
     Returns:
         List of FileEntry sorted by security_weight descending.
     """
     entries: list[FileEntry] = []
 
-    for file_path in _walk_files(target_path, max_size):
+    for file_path in _walk_files(target_path, max_size, exclude, include):
         rel_path = str(file_path.relative_to(target_path)).replace("\\", "/")
         ext = file_path.suffix.lower()
         language = EXTENSION_LANGUAGE.get(ext, "other")
@@ -149,7 +154,11 @@ async def run_inventory(state: PipelineState) -> None:
         )
 
     max_size = state.config.sast.scanner_max_file_size_bytes
-    entries = discover_files(target, max_size)
+    entries = discover_files(
+        target, max_size,
+        exclude=tuple(state.config.review.exclude),
+        include=tuple(state.config.review.include),
+    )
 
     languages: dict[str, int] = {}
     for entry in entries:
@@ -174,32 +183,50 @@ async def run_inventory(state: PipelineState) -> None:
     )
 
 
-def _walk_files(root: Path, max_size: int) -> list[Path]:
-    """Walk directory tree, excluding generated/vendored paths."""
-    files = []
-    for item in root.rglob("*"):
-        if not item.is_file():
-            continue
+def _walk_files(
+    root: Path, max_size: int,
+    exclude: tuple[str, ...] = (), include: tuple[str, ...] = (),
+) -> list[Path]:
+    """Walk the tree with directory pruning and optional user glob filters.
 
-        # Check directory exclusions
-        parts = item.relative_to(root).parts
-        if any(part in EXCLUDE_DIRS for part in parts[:-1]):
-            continue
+    Uses os.walk with in-place dirnames pruning instead of root.rglob("*"),
+    which enumerates every entry inside excluded trees (node_modules, .git)
+    before filtering them out.
 
-        # Check file pattern exclusions
-        name = item.name
-        if any(p.search(name) for p in _EXCLUDE_FILE_PATTERNS):
-            continue
+    exclude: fnmatch globs on the relative POSIX path — matching files skipped,
+             matching directory names pruned (never descended).
+    include: when non-empty, only files whose relative path matches at least
+             one glob are kept (applied after exclude).
+    """
+    import fnmatch
+    import os
 
-        # Skip files over max size
-        try:
-            if item.stat().st_size > max_size:
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        rel_dir = Path(dirpath).relative_to(root).as_posix()
+        dirnames[:] = [
+            d for d in dirnames
+            if d not in EXCLUDE_DIRS
+            and not d.endswith(".egg-info")
+            and not any(fnmatch.fnmatch(f"{rel_dir}/{d}".lstrip("./"), pat) or fnmatch.fnmatch(d, pat)
+                        for pat in exclude)
+        ]
+        for name in filenames:
+            if any(p.search(name) for p in _EXCLUDE_FILE_PATTERNS):
                 continue
-        except OSError as e:
-            logger.debug("inventory.stat_failed", path=str(item), error=str(e))
-            continue
-
-        files.append(item)
+            rel = f"{rel_dir}/{name}".lstrip("./") if rel_dir != "." else name
+            if any(fnmatch.fnmatch(rel, pat) for pat in exclude):
+                continue
+            if include and not any(fnmatch.fnmatch(rel, pat) for pat in include):
+                continue
+            item = Path(dirpath) / name
+            try:
+                if item.stat().st_size > max_size:
+                    continue
+            except OSError as e:
+                logger.debug("inventory.stat_failed", path=str(item), error=str(e))
+                continue
+            files.append(item)
     return files
 
 
@@ -236,7 +263,8 @@ def _compute_security_weight(file_path: Path, language: str) -> int:
 
     # Content-based boost (read first 4KB for efficiency)
     try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")[:4096]
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            content = f.read(4096)
         for pattern, boost in _SECURITY_WEIGHT_PATTERNS:
             if pattern.search(content):
                 weight += boost

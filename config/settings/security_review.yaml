@@ -38,6 +38,8 @@
 #   output_sarif:    str   # SARIF output filename
 #   output_summary:  str   # markdown summary filename (default: security-report.md)
 #   output_triage:   str   # triage audit log filename (default: triage.json)
+#   exclude:         list[str]  # fnmatch globs (relative paths) to exclude from inventory. [] = none
+#   include:         list[str]  # when non-empty, only matching relative paths are reviewed. [] = all
 # =============================================================================
 
 llm:
@@ -108,3 +110,5 @@ review:
   output_sarif: "security-report.sarif"
   output_summary: "security-report.md"
   output_triage: "triage.json"
+  exclude: []
+  include: []

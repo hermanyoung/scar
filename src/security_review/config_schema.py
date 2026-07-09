@@ -99,6 +99,10 @@ class ReviewConfig(BaseModel, extra="forbid"):
     output_sarif: str
     output_summary: str = Field(default="security-report.md")
     output_triage: str = Field(default="triage.json")
+    exclude: list[str] = Field(default_factory=list,
+                               description="fnmatch globs (relative paths) to exclude from inventory")
+    include: list[str] = Field(default_factory=list,
+                               description="when non-empty, only matching relative paths are reviewed")
 
 
 class SecurityReviewConfig(BaseModel, extra="forbid"):

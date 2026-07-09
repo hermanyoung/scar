@@ -74,9 +74,13 @@ def resolve_exit_code(report_data, fail_on: str | None, fail_on_degraded: bool) 
               help="Exit 3 if any finding is at or above this priority band (for CI gating).")
 @click.option("--fail-on-degraded", is_flag=True,
               help="Exit 4 if the review completed with coverage gaps (degradations).")
+@click.option("--exclude", "exclude", multiple=True,
+              help="Glob (relative path) to exclude, repeatable. e.g. --exclude 'third_party/*'")
+@click.option("--include", "include", multiple=True,
+              help="Restrict review to matching globs, repeatable.")
 def review(target, mode, provider, budget, output, summary, report_format, config_path,
            verbose, debug, quiet, json_logs, no_file_log, triage_all, trace, no_preflight,
-           fail_on, fail_on_degraded):
+           fail_on, fail_on_degraded, exclude, include):
     """Run the security review pipeline.
 
     Exit codes: 0 pass; 1 crash (partial artifacts salvaged when possible);
@@ -120,6 +124,10 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
     overrides.setdefault("review", {})["output_triage"] = triage
     if triage_all:
         overrides.setdefault("triage", {})["min_score"] = 0.0
+    if exclude:
+        overrides.setdefault("review", {})["exclude"] = list(exclude)
+    if include:
+        overrides.setdefault("review", {})["include"] = list(include)
 
     merged = cfg.model_dump()
     for section, values in overrides.items():
