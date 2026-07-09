@@ -1,4 +1,4 @@
-# Plan 019 — Adversarial Verification & Pipeline Resilience
+# Plan 020 — Adversarial Verification & Pipeline Resilience
 
 **Date:** 2026-07-05
 **Status:** Ready for implementation (Phases 1–3 spec-complete, verified against source; Phase 4 design-level, optional)
