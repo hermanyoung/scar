@@ -14,9 +14,12 @@ from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed output.")
 @click.option("--debug", is_flag=True, help="DEBUG-level logging.")
 def health_check(verbose, debug):
-    """Check that all required external tools are installed."""
+    """Check that all required external tools, config, and auth are ready."""
     _setup_logging(verbose, debug, quiet=not verbose and not debug,
                    json_logs=False, no_file_log=True)
+
+    from security_review.logging import get_logger
+    logger = get_logger(__name__)
 
     from security_review.tools.registry import load_tool_specs
 
@@ -38,11 +41,82 @@ def health_check(verbose, debug):
                        f"binary={spec.binary:<20} MISSING")
             all_ok = False
 
+    click.echo("\n  Configuration")
+    checks: list[tuple[str, bool, str]] = []   # (label, ok, detail)
+
+    from security_review.config import load_config
+    try:
+        cfg = load_config(None)
+        checks.append(("config/settings/security_review.yaml", True, f"mode={cfg.review.mode}"))
+    except Exception as e:
+        cfg = None
+        checks.append(("config/settings/security_review.yaml", False, str(e)))
+        logger.warning("health.check_failed", check="config/settings/security_review.yaml",
+                        error=str(e))
+
+    from security_review.checks import load_cwe_checks
+    try:
+        cwe_checks = load_cwe_checks()
+        checks.append(("config/taxonomy/cwe.yaml", True, f"{len(cwe_checks)} LLM checks"))
+    except Exception as e:
+        checks.append(("config/taxonomy/cwe.yaml", False, str(e)))
+        logger.warning("health.check_failed", check="config/taxonomy/cwe.yaml", error=str(e))
+
+    from security_review import MODULE_ROOT
+    for prompt_file in ("triage.md", "config_review.md"):
+        p = MODULE_ROOT / "config" / "prompts" / prompt_file
+        checks.append((f"config/prompts/{prompt_file}", p.exists(), "" if p.exists() else "missing"))
+
+    if cfg is not None:
+        from security_review.budget import pricing_entry_exists
+        for m in filter(None, {cfg.llm.provider_model, cfg.llm.triage_model}):
+            try:
+                ok = pricing_entry_exists(m)
+                detail = "" if ok else "no entry in config/pricing.yaml"
+            except Exception as e:
+                ok, detail = False, str(e)
+                logger.warning("health.check_failed", check=f"pricing: {m}", error=str(e))
+            checks.append((f"pricing: {m}", ok, detail))
+
+        # Auth presence — no subprocess, presence checks only (WP8).
+        provider = cfg.llm.provider_model.partition(":")[0]
+        if provider in ("anthropic", "openai"):
+            import os
+            from security_review.config import get_settings
+            settings = get_settings()
+            if provider == "anthropic":
+                has_key = bool(os.environ.get("ANTHROPIC_API_KEY") or settings.anthropic_api_key)
+            else:
+                has_key = bool(os.environ.get("OPENAI_API_KEY") or settings.openai_api_key)
+            checks.append((f"auth: {provider}", has_key,
+                           "" if has_key else
+                           f"{provider.upper()}_API_KEY not set in environment or config/.env"))
+        elif provider == "copilot":
+            gh_present = shutil.which("gh") is not None
+            checks.append((
+                "auth: copilot", gh_present,
+                "gh CLI present (run 'gh auth status' to verify login)" if gh_present
+                else "gh CLI not found on PATH",
+            ))
+        elif provider == "claude":
+            try:
+                import claude_agent_sdk  # noqa: F401
+                checks.append(("auth: claude", True, "claude_agent_sdk importable"))
+            except ImportError as e:
+                checks.append(("auth: claude", False, str(e)))
+                logger.warning("health.check_failed", check="auth: claude", error=str(e))
+
+    for label, ok, detail in checks:
+        mark = click.style("  [+]", fg="green") if ok else click.style("  [!]", fg="red")
+        click.echo(f"{mark} {label:<44} {detail}")
+        if not ok:
+            all_ok = False
+
     click.echo()
     if all_ok:
-        click.echo(click.style("All required tools found.", fg="green"))
+        click.echo(click.style("Environment healthy.", fg="green"))
     else:
-        click.echo(click.style("Some required tools are missing.", fg="red"))
+        click.echo(click.style("Problems found — see above.", fg="red"))
         raise SystemExit(1)
 
 

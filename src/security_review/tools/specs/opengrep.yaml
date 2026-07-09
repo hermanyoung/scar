@@ -12,4 +12,4 @@ timeout_seconds: 300
 target_type: directory
 applies_to: ["*.py", "*.cs", "*.razor", "*.csproj", "Dockerfile", "Dockerfile.*", "*.dockerfile"]
 cwe_source: metadata
-optional: true
+optional: false
