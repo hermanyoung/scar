@@ -183,6 +183,24 @@ async def run_inventory(state: PipelineState) -> None:
     )
 
 
+def path_matches_filters(rel_path: str, exclude: tuple[str, ...], include: tuple[str, ...]) -> bool:
+    """True if rel_path passes the exclude/include glob filters (i.e. should be kept).
+
+    Shared fnmatch semantics for --exclude/--include: exclude wins, then include
+    (when non-empty) must match. Used by _walk_files (relative file paths) and
+    by passes/sast.py's SARIF result filtering (relative finding URIs) so the
+    filters apply identically whether a finding came from the LLM-facing
+    manifest or a directory-scanning tool that bypasses it entirely.
+    """
+    import fnmatch
+
+    if any(fnmatch.fnmatch(rel_path, pat) for pat in exclude):
+        return False
+    if include and not any(fnmatch.fnmatch(rel_path, pat) for pat in include):
+        return False
+    return True
+
+
 def _walk_files(
     root: Path, max_size: int,
     exclude: tuple[str, ...] = (), include: tuple[str, ...] = (),
@@ -215,9 +233,7 @@ def _walk_files(
             if any(p.search(name) for p in _EXCLUDE_FILE_PATTERNS):
                 continue
             rel = f"{rel_dir}/{name}".lstrip("./") if rel_dir != "." else name
-            if any(fnmatch.fnmatch(rel, pat) for pat in exclude):
-                continue
-            if include and not any(fnmatch.fnmatch(rel, pat) for pat in include):
+            if not path_matches_filters(rel, exclude, include):
                 continue
             item = Path(dirpath) / name
             try:

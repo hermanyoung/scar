@@ -13,7 +13,7 @@ from security_review.context_builder import inline_files
 from security_review.errors import is_fatal_error
 from security_review.model_capabilities import supports_native_json, CONFIG_FORMAT_JSON
 from security_review.models.config_review import ConfigReviewResult
-from security_review.models.degradation import Degradation
+from security_review.models.degradation import Degradation, files_omitted_degradation
 from security_review.model_settings import build_model_settings
 from security_review.output_parser import parse_config_review_response
 from security_review.passes.state import PipelineState
@@ -89,13 +89,7 @@ async def run_config_review(state: PipelineState) -> None:
         file_paths, state.target_path, max_tokens=state.config.llm.max_tokens_per_batch,
     )
     if omitted:
-        state.degrade(Degradation(
-            pass_name="config_review", kind="files_omitted", subject="config_review",
-            detail=f"{len(omitted)} of {len(file_paths)} selected files did not fit the "
-                   f"token budget and were NOT reviewed: "
-                   f"{', '.join(omitted[:5])}{'…' if len(omitted) > 5 else ''}",
-            count=len(omitted),
-        ))
+        state.degrade(files_omitted_degradation("config_review", "config_review", omitted, len(file_paths)))
 
     # Native JSON: PydanticAI enforces ConfigReviewResult schema directly.
     # Prompted: append JSON format instruction, parse the text response.

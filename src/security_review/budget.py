@@ -56,8 +56,7 @@ class CostTracker:
         or 'anthropic:claude-opus' -> 'anthropic:claude-opus-4-6') so config/pricing.yaml
         keys match what providers.py actually dispatches to, not the raw --provider string.
         """
-        provider, _, name = model_requested.partition(":")
-        resolved = f"{provider}:{resolve_model_name(provider, name)}"
+        resolved = _resolve_pricing_key(model_requested)
         pricing = self._pricing.get(resolved)
         if pricing is None:
             raise ConfigurationError(
@@ -113,11 +112,19 @@ class CostTracker:
 
 def pricing_entry_exists(model_string: str) -> bool:
     """True if the resolved form of provider:model has a pricing entry."""
-    provider, _, name = model_string.partition(":")
-    if not name:
+    if not model_string.partition(":")[2]:
         return False
-    resolved = f"{provider}:{resolve_model_name(provider, name)}"
-    return resolved in _load_pricing()
+    return _resolve_pricing_key(model_string) in _load_pricing()
+
+
+def _resolve_pricing_key(model_string: str) -> str:
+    """Resolve a 'provider:model' string to its canonical pricing.yaml key.
+
+    Shared by CostTracker.record() and pricing_entry_exists() so both look
+    up pricing the same way build_model() actually dispatches models.
+    """
+    provider, _, name = model_string.partition(":")
+    return f"{provider}:{resolve_model_name(provider, name)}"
 
 
 def _load_pricing() -> dict[str, ModelPricing]:

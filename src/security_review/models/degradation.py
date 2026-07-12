@@ -34,3 +34,19 @@ class Degradation(BaseModel, extra="forbid"):
     subject: str                       # tool name, "CWE-NNN", pass name, or "run"
     detail: str                        # one human-readable sentence
     count: int = Field(default=0, ge=0)  # optional quantity (files omitted, calls failed, checks skipped)
+
+
+def files_omitted_degradation(
+    pass_name: PassName, subject: str, omitted: list[str], total: int, *, context: str = "",
+) -> Degradation:
+    """Build a files_omitted Degradation — shared by holistic.py and
+    config_review.py so both token-budget-truncation messages read identically.
+    """
+    suffix = f" for {context}" if context else ""
+    return Degradation(
+        pass_name=pass_name, kind="files_omitted", subject=subject,
+        detail=f"{len(omitted)} of {total} selected files did not fit the "
+               f"token budget and were NOT reviewed{suffix}: "
+               f"{', '.join(omitted[:5])}{'…' if len(omitted) > 5 else ''}",
+        count=len(omitted),
+    )

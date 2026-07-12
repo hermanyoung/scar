@@ -5,24 +5,14 @@ import json
 from pathlib import Path
 
 from security_review import __version__
-from security_review.config import load_config
 from security_review.models.degradation import Degradation
 from security_review.passes.merge import write_artifacts
-from security_review.passes.state import PipelineState
 
 
-def test_write_artifacts_produces_all_files_from_partial_state(tmp_path: Path, sample_sarif: dict):
-    cfg = load_config(None)
-    review = cfg.review.model_dump()
-    review.update({
-        "output_sarif": str(tmp_path / "security-report.sarif"),
-        "output_summary": str(tmp_path / "security-report.md"),
-        "output_triage": str(tmp_path / "triage.json"),
-        "mode": "sast",
-    })
-    cfg = cfg.model_copy(update={"review": cfg.review.__class__.model_validate(review)})
-
-    state = PipelineState(config=cfg, target_path=tmp_path, work_dir=tmp_path)
+def test_write_artifacts_produces_all_files_from_partial_state(
+    tmp_path: Path, sample_sarif: dict, sast_pipeline_state,
+):
+    state = sast_pipeline_state
     state.manifest = None  # a real aborted run may not even reach Pass 1's output
     state.sast_sarif = sample_sarif
     state.degrade(Degradation(

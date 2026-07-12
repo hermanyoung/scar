@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import tempfile
 from pathlib import Path
 
 import structlog
@@ -26,6 +25,7 @@ from security_review.tools.registry import (
     load_tool_specs,
     resolve_tools_for_manifest,
 )
+from security_review.passes.inventory import path_matches_filters
 from security_review.passes.state import PipelineState
 from security_review.tools.runner import run_tool
 
@@ -87,28 +87,27 @@ async def run_sast(state: PipelineState) -> None:
             tasks.append(_run_single_tool(spec, target, state.work_dir, run_id=state.run_id))
     sarif_documents = await asyncio.gather(*tasks, return_exceptions=True)
 
+    def _degrade_tool_failed(spec_name: str) -> None:
+        state.degrade(Degradation(
+            pass_name="sast", kind="tool_failed", subject=spec_name,
+            detail=f"{spec_name} produced no usable output — its findings are absent "
+                   f"(see var/logs/system.jsonl)",
+        ))
+
     # Filter out None results (failed tools) and exceptions
     valid_docs = []
     for i, doc in enumerate(sarif_documents):
         spec = applicable_specs[i]
         if isinstance(doc, Exception):
             logger.error("sast.tool_exception", error=str(doc))
-            state.degrade(Degradation(
-                pass_name="sast", kind="tool_failed", subject=spec.name,
-                detail=f"{spec.name} produced no usable output — its findings are absent "
-                       f"(see var/logs/system.jsonl)",
-            ))
+            _degrade_tool_failed(spec.name)
             progress(2, "sast", "tool", f"{spec.name}: failed")
         elif doc is not None:
             count = sum(len(r.get("results", [])) for r in doc.get("runs", []))
             progress(2, "sast", "tool", f"{spec.name}: {count} findings")
             valid_docs.append(doc)
         else:
-            state.degrade(Degradation(
-                pass_name="sast", kind="tool_failed", subject=spec.name,
-                detail=f"{spec.name} produced no usable output — its findings are absent "
-                       f"(see var/logs/system.jsonl)",
-            ))
+            _degrade_tool_failed(spec.name)
             progress(2, "sast", "tool", f"{spec.name}: failed — no output")
 
     # Merge all SARIF documents
@@ -296,14 +295,12 @@ def _filter_excluded_results(
 ) -> None:
     """Drop SARIF results whose file URI is excluded, or not matched by include.
 
-    Mirrors passes/inventory.py's exclude/include glob semantics (fnmatch on
-    the relative POSIX URI, already normalized by _normalize_sarif_uris)
-    so --exclude/--include apply uniformly across the pipeline.
+    Reuses passes/inventory.py's path_matches_filters (fnmatch on the relative
+    POSIX URI, already normalized by _normalize_sarif_uris) so --exclude/
+    --include apply identically across the pipeline.
     """
     if not exclude and not include:
         return
-
-    import fnmatch
 
     for run in sarif.get("runs", []):
         kept = []
@@ -312,11 +309,8 @@ def _filter_excluded_results(
             uri = ""
             if locs:
                 uri = locs[0].get("physicalLocation", {}).get("artifactLocation", {}).get("uri", "")
-            if any(fnmatch.fnmatch(uri, pat) for pat in exclude):
-                continue
-            if include and not any(fnmatch.fnmatch(uri, pat) for pat in include):
-                continue
-            kept.append(result)
+            if path_matches_filters(uri, exclude, include):
+                kept.append(result)
         run["results"] = kept
 
 

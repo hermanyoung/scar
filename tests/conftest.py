@@ -101,6 +101,29 @@ namespace VulnerableApp.Controllers
 
 
 @pytest.fixture
+def sast_pipeline_state(tmp_path: Path):
+    """A minimal PipelineState wired to write SARIF/summary/triage.json under tmp_path.
+
+    Shared by tests that exercise merge.write_artifacts/run_merge directly
+    (test_degradations.py, test_salvage.py) so the config-override boilerplate
+    for pointing review.output_* at tmp_path lives in one place.
+    """
+    from security_review.config import load_config
+    from security_review.passes.state import PipelineState
+
+    cfg = load_config(None)
+    review = cfg.review.model_dump()
+    review.update({
+        "output_sarif": str(tmp_path / "security-report.sarif"),
+        "output_summary": str(tmp_path / "security-report.md"),
+        "output_triage": str(tmp_path / "triage.json"),
+        "mode": "sast",
+    })
+    cfg = cfg.model_copy(update={"review": cfg.review.__class__.model_validate(review)})
+    return PipelineState(config=cfg, target_path=tmp_path, work_dir=tmp_path)
+
+
+@pytest.fixture
 def sample_sarif() -> dict:
     """Minimal valid SARIF 2.1.0 document with 3 findings across 2 tools."""
     return {

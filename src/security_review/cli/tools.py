@@ -81,16 +81,14 @@ def health_check(verbose, debug):
         # Auth presence — no subprocess, presence checks only (WP8).
         provider = cfg.llm.provider_model.partition(":")[0]
         if provider in ("anthropic", "openai"):
-            import os
-            from security_review.config import get_settings
-            settings = get_settings()
-            if provider == "anthropic":
-                has_key = bool(os.environ.get("ANTHROPIC_API_KEY") or settings.anthropic_api_key)
-            else:
-                has_key = bool(os.environ.get("OPENAI_API_KEY") or settings.openai_api_key)
-            checks.append((f"auth: {provider}", has_key,
-                           "" if has_key else
-                           f"{provider.upper()}_API_KEY not set in environment or config/.env"))
+            from security_review.errors import ConfigurationError
+            from security_review.model_providers import resolve_api_key
+            try:
+                resolve_api_key(provider)
+                checks.append((f"auth: {provider}", True, ""))
+            except ConfigurationError as e:
+                checks.append((f"auth: {provider}", False, str(e)))
+                logger.warning("health.check_failed", check=f"auth: {provider}", error=str(e))
         elif provider == "copilot":
             gh_present = shutil.which("gh") is not None
             checks.append((

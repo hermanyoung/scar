@@ -118,15 +118,18 @@ def _reports_prune_incomplete(output_dir: Path, *, skip_confirm: bool) -> None:
         click.echo(f"Deleted {d.name}")
 
 
-def _reports_show(run_id: str) -> None:
-    output_dir = PROJECT_ROOT / "var" / "output"
+def _find_run(output_dir: Path, run_id: str) -> Path:
+    """Find the run directory whose name ends in -{run_id}. Exits 1 if none match."""
     matches = [d for d in output_dir.iterdir() if d.is_dir() and d.name.endswith(f"-{run_id}")]
-
     if not matches:
         click.echo(f"No run found with ID: {run_id}", err=True)
         raise SystemExit(1)
+    return matches[0]
 
-    run_dir = matches[0]
+
+def _reports_show(run_id: str) -> None:
+    output_dir = PROJECT_ROOT / "var" / "output"
+    run_dir = _find_run(output_dir, run_id)
     report = run_dir / "security-report.md"
     if not report.exists():
         click.echo(f"Run {run_id} has no report (incomplete run).", err=True)
@@ -142,13 +145,6 @@ def _reports_show(run_id: str) -> None:
 
 def _reports_compare(run_a: str, run_b: str) -> None:
     output_dir = PROJECT_ROOT / "var" / "output"
-
-    def find_run(run_id: str) -> Path:
-        matches = [d for d in output_dir.iterdir() if d.is_dir() and d.name.endswith(f"-{run_id}")]
-        if not matches:
-            click.echo(f"No run found with ID: {run_id}", err=True)
-            raise SystemExit(1)
-        return matches[0]
 
     def load_findings(run_dir: Path) -> set[tuple[str, str, int]]:
         sarif_path = run_dir / "security-report.sarif"
@@ -174,8 +170,8 @@ def _reports_compare(run_a: str, run_b: str) -> None:
                 findings.add((rule, fp, line))
         return findings
 
-    dir_a = find_run(run_a)
-    dir_b = find_run(run_b)
+    dir_a = _find_run(output_dir, run_a)
+    dir_b = _find_run(output_dir, run_b)
     findings_a = load_findings(dir_a)
     findings_b = load_findings(dir_b)
 

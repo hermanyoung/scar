@@ -183,8 +183,6 @@ async def run_triage(state: PipelineState) -> None:
             avg = elapsed / done_count
             remaining = (total_findings - done_count) * avg
             eta = f" ~{int(remaining)}s left"
-        elif done_count >= total_findings:
-            eta = ""
         else:
             eta = ""
         state.on_progress(

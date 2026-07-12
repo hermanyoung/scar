@@ -27,7 +27,7 @@ from security_review.checks import CWECheck, load_cwe_checks, select_files_for_c
 from security_review.context_builder import inline_files
 from security_review.errors import is_fatal_error
 from security_review.model_capabilities import supports_native_json, HOLISTIC_FORMAT_MARKDOWN
-from security_review.models.degradation import Degradation
+from security_review.models.degradation import Degradation, files_omitted_degradation
 from security_review.models.findings import HolisticFinding, HolisticReviewResult
 from security_review.model_settings import build_model_settings
 from security_review.output_parser import parse_holistic_response
@@ -357,12 +357,9 @@ async def run_single_check(
         max_input_tokens=state.config.llm.max_tokens_per_batch,
     )
     if omitted:
-        state.degrade(Degradation(
-            pass_name="holistic", kind="files_omitted", subject=f"CWE-{check.cwe_id}",
-            detail=f"{len(omitted)} of {len(file_paths)} selected files did not fit the "
-                   f"token budget and were NOT reviewed for CWE-{check.cwe_id}: "
-                   f"{', '.join(omitted[:5])}{'…' if len(omitted) > 5 else ''}",
-            count=len(omitted),
+        state.degrade(files_omitted_degradation(
+            "holistic", f"CWE-{check.cwe_id}", omitted, len(file_paths),
+            context=f"CWE-{check.cwe_id}",
         ))
 
     # Native JSON providers: PydanticAI enforces the HolisticReviewResult schema.

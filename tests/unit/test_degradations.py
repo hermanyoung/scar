@@ -9,28 +9,13 @@ from pydantic import ValidationError
 from rich.console import Console
 
 from security_review import __version__
-from security_review.config import load_config
 from security_review.models.degradation import Degradation
 from security_review.passes.merge import run_merge
-from security_review.passes.state import PipelineState
 from security_review.reporting.common import ReportData, render_degradations_md
 from security_review.reporting.full import render_full
 from security_review.reporting.summary import render_summary
 from security_review.reporting.terminal import render_terminal
 from security_review.run_ledger import RunLedger
-
-
-def _build_state(tmp_path: Path) -> PipelineState:
-    cfg = load_config(None)
-    review = cfg.review.model_dump()
-    review.update({
-        "output_sarif": str(tmp_path / "security-report.sarif"),
-        "output_summary": str(tmp_path / "security-report.md"),
-        "output_triage": str(tmp_path / "triage.json"),
-        "mode": "sast",
-    })
-    cfg = cfg.model_copy(update={"review": cfg.review.__class__.model_validate(review)})
-    return PipelineState(config=cfg, target_path=tmp_path, work_dir=tmp_path)
 
 
 # -- Degradation model --------------------------------------------------------
@@ -61,8 +46,8 @@ def test_degradation_rejects_invalid_kind():
 # -- PipelineState.degrade ----------------------------------------------------
 
 
-def test_pipeline_state_degrade_appends(tmp_path: Path):
-    state = _build_state(tmp_path)
+def test_pipeline_state_degrade_appends(sast_pipeline_state):
+    state = sast_pipeline_state
     assert state.degradations == []
     d = Degradation(pass_name="sast", kind="tool_missing", subject="bandit", detail="x")
     state.degrade(d)
@@ -129,8 +114,8 @@ def test_render_terminal_prints_panel_with_zero_findings():
 # -- Merge invocation ----------------------------------------------------------
 
 
-async def test_merge_invocation_marks_execution_unsuccessful(tmp_path: Path):
-    state = _build_state(tmp_path)
+async def test_merge_invocation_marks_execution_unsuccessful(tmp_path: Path, sast_pipeline_state):
+    state = sast_pipeline_state
     state.degrade(Degradation(
         pass_name="sast", kind="tool_missing", subject="bandit", detail="binary missing",
     ))
@@ -151,8 +136,8 @@ async def test_merge_invocation_marks_execution_unsuccessful(tmp_path: Path):
     assert len(triage_data["degradations"]) == 1
 
 
-async def test_merge_mirrors_degradation_to_ledger(tmp_path: Path):
-    state = _build_state(tmp_path)
+async def test_merge_mirrors_degradation_to_ledger(tmp_path: Path, sast_pipeline_state):
+    state = sast_pipeline_state
     state.ledger = RunLedger(tmp_path / "events.jsonl")
     state.degrade(Degradation(
         pass_name="sast", kind="tool_missing", subject="bandit", detail="binary missing",
