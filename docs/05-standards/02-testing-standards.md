@@ -2,7 +2,7 @@
 
 *Applies to: all test code in `tests/`*
 
-This document defines how we write and organize tests. It complements the reference architecture testing standards (`docs/99-reference-architecture/12-core-testing-standards.md`) with project-specific patterns for PydanticAI agents, SARIF processing, and corpus regression testing.
+This document defines how we write and organize tests, with project-specific patterns for PydanticAI agents, SARIF processing, and eval/regression testing.
 
 ---
 
@@ -65,45 +65,71 @@ Any test that accidentally makes a real LLM call will fail immediately. This is 
 
 ## Agent Testing Patterns
 
+Agents use `output_type=str` (ADR-004) — even for providers with native JSON
+support, `result.output` is always plain text. Parsing into a validated
+model (`TriagedFinding`, `HolisticReviewResult`, `ConfigReviewResult`)
+happens downstream via `output_parser.py`, not inside the agent. Tests
+exercise that two-step contract, not a raw structured return value —
+asserting `result.output.total_confirmed` or similar will not work.
+
+Agents are built via factory functions, not imported as fixed singletons —
+`build_triage_agent(output_retries)`, `build_holistic_agent(output_retries)`,
+`build_config_review_agent(output_retries)` in `security_review.agents.*.agent`.
+`output_retries` is a pydantic-ai constructor-only argument, so each pass
+builds its agent from `state.config.llm.output_retries` at call time rather
+than importing one fixed instance.
+
 ### TestModel (Canned Output)
 
-For tests that only need to verify the agent produces valid output:
+For tests that only need to verify the agent runs and returns text:
 
 ```python
-from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
-async def test_triage_returns_valid_output():
-    result = await triage_agent.run(
-        "Triage these findings...",
-        deps=mock_deps,
-        model=TestModel(),
-    )
-    assert result.output.total_confirmed >= 0
+from security_review.agents.triage.agent import build_triage_agent
+
+async def test_triage_agent_runs(mock_deps):
+    agent = build_triage_agent(output_retries=3)
+    result = await agent.run("Triage this finding", deps=mock_deps, model=TestModel())
+    assert isinstance(result.output, str)
 ```
 
 ### FunctionModel (Computed Output)
 
-For tests that need realistic agent behavior with tool calls:
+For tests that need a specific response — e.g. to verify `output_parser.py`
+extracts it correctly. The function must return a `ModelResponse`, not a
+bare string or `.model_dump_json()` output:
 
 ```python
+import json
+
+from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
 
-def mock_triage_response(messages, info):
-    return TriageResult(
-        findings=[...],
-        total_confirmed=1,
-        total_false_positive=0,
-        total_needs_context=0,
-    ).model_dump_json()
+from security_review.agents.triage.agent import build_triage_agent
+from security_review.output_parser import parse_triage_response
 
-async def test_triage_with_function_model():
-    result = await triage_agent.run(
-        "Triage...",
-        deps=mock_deps,
-        model=FunctionModel(mock_triage_response),
+def mock_triage_response(messages, info):
+    return ModelResponse(parts=[TextPart(json.dumps({
+        "findings": [{"verdict": "CONFIRMED", "confidence": 0.95, "rationale": "..."}],
+    }))])
+
+async def test_triage_with_function_model(mock_deps):
+    agent = build_triage_agent(output_retries=3)
+    result = await agent.run(
+        "Triage...", deps=mock_deps, model=FunctionModel(mock_triage_response),
     )
+    finding = parse_triage_response(
+        result.output, file_path="app.py", line_number=13,
+        rule_id="B602", tool_name="bandit", default_confidence=0.5,
+    )
+    assert finding.verdict.value == "CONFIRMED"
 ```
+
+See `tests/integration/test_triage_agent.py` for the full working version of
+this pattern, including the P13 identifier-override assertions (the LLM's
+echoed `file_path`/`line_number`/`rule_id` must be overridden with the
+caller's ground truth, never trusted).
 
 ---
 
@@ -139,16 +165,29 @@ Integration tests may add fixtures in `tests/integration/conftest.py` for tool-s
 
 ### Integration Tests (may require external tools)
 
-- **Tool execution:** run bandit/gitleaks/opengrep against corpus fixtures, verify SARIF output
+- **Tool execution:** run bandit/gitleaks/opengrep against `eval/` fixtures, verify SARIF output
 - **Agent integration:** run triage agent with FunctionModel against sample findings
-- **Pipeline:** run full pipeline in `--mode sast` against vulnerable corpus
+- **Pipeline:** run full pipeline in `--mode sast` against vulnerable eval samples
 
-### Corpus Regression Tests
+### Eval Snapshot Regression (deterministic, no LLM)
 
-`tests/corpus/runner.py` provides a snapshot regression harness:
-- Run SAST tools against `corpus/` vulnerable samples
-- Compare output against `expected.sarif` baselines
+`tests/eval/runner.py` provides a SAST-only snapshot regression harness:
+- Run SAST tools against `eval/` vulnerable samples
+- Compare output against each entry's own `expected.sarif` baseline
 - Fail if findings change unexpectedly
+
+### Golden Fixture Regression (real LLM calls — run separately)
+
+`tests/regression/test_golden.py` runs live CWE detection against a
+reference target and compares results to `config/golden/example-target.yaml`.
+These make real LLM calls and must never run alongside `pytest tests/unit/`:
+
+```bash
+pytest tests/regression/ -v --provider copilot:claude-opus
+```
+
+See `docs/05-standards/04-benchmarking-standards.md` for the full baseline
+and update workflow.
 
 ---
 
