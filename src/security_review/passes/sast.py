@@ -83,7 +83,8 @@ async def run_sast(state: PipelineState) -> None:
         if spec.target_type == "file":
             # File-targeted tools (e.g. hadolint) run once per matching file
             tasks.append(_run_file_targeted_tool(
-                spec, state.manifest, state.target_path, state.work_dir, run_id=state.run_id,
+                spec, state.manifest, state.target_path, state.work_dir,
+                run_id=state.run_id, target_root=target,
             ))
         else:
             tasks.append(_run_single_tool(spec, target, state.work_dir, run_id=state.run_id))
@@ -114,14 +115,15 @@ async def run_sast(state: PipelineState) -> None:
             _degrade_tool_failed(spec.name)
             progress(2, "sast", "tool", f"{spec.name}: failed — no output")
 
-    # Merge all SARIF documents
+    # Normalize all URIs to relative paths BEFORE merging, so merge_sarif's
+    # (cwe, file, line) dedup key compares like with like across tools.
+    for doc in valid_docs:
+        _normalize_sarif_uris(doc, target)
+
     merged = merge_sarif(valid_docs)
 
     # Normalise severity levels across tools (Bandit, OpenGrep, betterleaks all differ)
     normalise_sarif_levels(merged)
-
-    # Normalize all URIs to relative paths (SAST tools produce absolute paths)
-    _normalize_sarif_uris(merged, target)
 
     # Apply user exclude/include filters to SAST results too. Directory-scanning
     # tools (bandit, opengrep, trivy) are invoked against the raw target path
@@ -165,6 +167,7 @@ async def _run_file_targeted_tool(
     work_dir: Path,
     *,
     run_id: str,
+    target_root: str,
 ) -> dict | None:
     """Run a file-targeted tool concurrently across all matching files, merge SARIF outputs."""
     matching_files = [
@@ -189,6 +192,13 @@ async def _run_file_targeted_tool(
 
     if not sarif_docs:
         return None
+
+    # Per-file URIs are absolute paths to individual files (e.g. Dockerfiles) —
+    # normalize against the repo target before the inner merge so the dedup key
+    # compares like with like (same rule as run_sast's pre-merge normalization).
+    for doc in sarif_docs:
+        _normalize_sarif_uris(doc, target_root)
+
     if len(sarif_docs) == 1:
         return sarif_docs[0]
     return merge_sarif(sarif_docs)
