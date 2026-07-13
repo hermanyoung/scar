@@ -37,7 +37,7 @@ The pipeline is: **detect -> scan -> triage -> review -> report**.
 - `config/` — YAML config, prompts, pricing, golden baselines
 - `config/golden/` — Golden fixture baselines for regression testing
 - `config/rules/` — SAST tool rules (OpenGrep YAML, Gitleaks config, Roslyn props)
-- `config/taxonomy/` — CWE registry, Bandit CWE mappings
+- `config/taxonomy/` — CWE registry, tool rule→CWE maps
 - `eval/` — Vulnerable code samples for evaluation/regression testing
 - `tests/unit/` — Unit tests (no LLM calls, no external tools)
 - `tests/regression/` — Golden fixture regression tests (real LLM calls)

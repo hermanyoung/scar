@@ -335,6 +335,10 @@
   name: "Use of Hard-coded Credentials"
   detection: sast
 
+"829":
+  name: "Inclusion of Functionality from Untrusted Control Sphere"
+  detection: sast  # hadolint (unpinned base images) + opengrep docker rules
+
 "862":
   name: "Missing Authorization"
   detection: llm

@@ -22,7 +22,7 @@ scar/
 │   │   └── config_review.md
 │   ├── taxonomy/
 │   │   ├── cwe.yaml                 # CWE registry (single source of truth)
-│   │   └── bandit-cwe-map.yaml
+│   │   └── hadolint-cwe-map.yaml    # tool rule → CWE map (cwe_source: rule_id_map)
 │   └── rules/
 │       ├── opengrep/                # OpenGrep YAML rules + test files
 │       ├── gitleaks/.gitleaks.toml

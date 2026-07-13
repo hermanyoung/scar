@@ -205,7 +205,7 @@
 - `taxonomy/cwe.yaml`
 - `taxonomy/cwe-top25-2024.yaml`
 - `taxonomy/owasp-top10-2021.yaml`
-- `taxonomy/bandit-cwe-map.yaml`
+- `taxonomy/hadolint-cwe-map.yaml`
 - `rules/gitleaks/.gitleaks.toml`
 - `rules/roslyn/Directory.Build.security.props`
 - `rules/roslyn/security.editorconfig`

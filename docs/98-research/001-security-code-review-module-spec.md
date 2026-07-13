@@ -260,7 +260,7 @@ security-review/
 │   ├── cwe.yaml                        # Canonical CWE registry (~45 entries)
 │   ├── cwe-top25-2024.yaml
 │   ├── owasp-top10-2021.yaml
-│   └── bandit-cwe-map.yaml             # B-code → CWE mapping
+│   └── hadolint-cwe-map.yaml           # DLnnnn → CWE mapping
 │
 ├── corpus/
 │   ├── csharp/
@@ -2142,7 +2142,7 @@ rules/roslyn/security.editorconfig
 taxonomy/cwe.yaml
 taxonomy/cwe-top25-2024.yaml
 taxonomy/owasp-top10-2021.yaml
-taxonomy/bandit-cwe-map.yaml
+taxonomy/hadolint-cwe-map.yaml
 corpus/csharp/cwe-089-sql-injection/source/*.cs
 corpus/csharp/cwe-089-sql-injection/expected.sarif
 corpus/csharp/cwe-502-deserialization/source/*.cs

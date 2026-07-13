@@ -10,8 +10,10 @@ import json
 from pathlib import Path
 
 import structlog
+import yaml
 
-from security_review.errors import SARIFError, ScannerError
+from security_review import MODULE_ROOT
+from security_review.errors import ConfigurationError, SARIFError, ScannerError
 from security_review.models.degradation import Degradation
 from security_review.priority import build_exposure_index, score_finding
 from security_review.sarif.converter import convert_dotnet_vuln_to_sarif, convert_pip_audit_to_sarif, convert_sarif_v1_to_v2
@@ -105,6 +107,8 @@ async def run_sast(state: PipelineState) -> None:
         elif doc is not None:
             count = sum(len(r.get("results", [])) for r in doc.get("runs", []))
             progress(2, "sast", "tool", f"{spec.name}: {count} findings")
+            if spec.cwe_source == "rule_id_map":
+                _apply_rule_cwe_map(doc, spec.name)
             valid_docs.append(doc)
         else:
             _degrade_tool_failed(spec.name)
@@ -271,6 +275,72 @@ async def _run_single_tool(
             error_type=type(e).__name__,
         )
         return None
+
+
+def _apply_rule_cwe_map(sarif: dict, tool_name: str) -> None:
+    """Inject external/cwe/cwe-NNN tags onto rules using config/taxonomy/{tool}-cwe-map.yaml.
+
+    Handles both SARIF shapes:
+      1. Driver declares a ``rules`` array — mapped rules get the CWE tag.
+      2. Results reference rules only via ``ruleId`` with no driver rules array
+         (hadolint's SARIF) — mapped results are tagged directly AND a driver
+         rule entry is synthesized so taxonomy extraction and rule→CWE lookups
+         (which read only driver rules) see the CWE too.
+    """
+    map_path = MODULE_ROOT / "config" / "taxonomy" / f"{tool_name}-cwe-map.yaml"
+    if not map_path.exists():
+        raise ConfigurationError(
+            f"Tool '{tool_name}' declares cwe_source: rule_id_map but "
+            f"{map_path} does not exist.",
+            code="SYS_CONFIG_INVALID",
+        )
+    with open(map_path, encoding="utf-8") as f:
+        rule_map = yaml.safe_load(f) or {}
+    from security_review.sarif.taxonomy import cwe_exists
+    for rule_id, cwe in rule_map.items():
+        if not cwe_exists(cwe):
+            raise ConfigurationError(
+                f"{map_path}: {rule_id} maps to {cwe}, which is not in "
+                f"config/taxonomy/cwe.yaml. Add the CWE to the taxonomy first.",
+                code="SYS_CWE_NOT_FOUND",
+            )
+
+    def _cwe_tag(cwe: str) -> str:
+        return f"external/cwe/cwe-{int(cwe.removeprefix('CWE-')):03d}"
+
+    def _append_tag(node: dict, cwe: str) -> None:
+        tags = node.setdefault("properties", {}).setdefault("tags", [])
+        tag = _cwe_tag(cwe)
+        if tag not in tags:
+            tags.append(tag)
+
+    for run in sarif.get("runs", []):
+        driver = run.get("tool", {}).get("driver", {})
+
+        # Shape 1: tag declared driver rules.
+        for rule in driver.get("rules", []):
+            cwe = rule_map.get(rule.get("id", ""))
+            if cwe is None:
+                logger.debug("sast.rule_unmapped", tool_name=tool_name, rule_id=rule.get("id"))
+                continue
+            _append_tag(rule, cwe)
+
+        # Shape 2: tag results directly and synthesize missing driver rules.
+        known_rule_ids = {r.get("id") for r in driver.get("rules", [])}
+        for result in run.get("results", []):
+            rule_id = result.get("ruleId", "")
+            cwe = rule_map.get(rule_id)
+            if cwe is None:
+                logger.debug("sast.rule_unmapped", tool_name=tool_name, rule_id=rule_id)
+                continue
+            _append_tag(result, cwe)
+            if rule_id not in known_rule_ids:
+                driver.setdefault("rules", []).append({
+                    "id": rule_id,
+                    "shortDescription": {"text": rule_id},
+                    "properties": {"tags": ["security", _cwe_tag(cwe)]},
+                })
+                known_rule_ids.add(rule_id)
 
 
 def _normalize_sarif_uris(sarif: dict, target_root: str) -> None:

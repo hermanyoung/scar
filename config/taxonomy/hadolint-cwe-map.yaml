@@ -1,0 +1,11 @@
+# =============================================================================
+# Hadolint rule -> CWE mapping
+# =============================================================================
+# Loaded by: src/security_review/passes/sast.py (_apply_rule_cwe_map) for tool
+# specs with cwe_source: rule_id_map.
+# Schema: <tool rule ID>: "CWE-NNN"   — every CWE must exist in cwe.yaml
+# (validated at load; unmapped rules keep no CWE tag and are logged at debug).
+# =============================================================================
+DL3002: "CWE-250"   # last USER is root — execution with unnecessary privileges
+DL3006: "CWE-829"   # image tag not pinned — untrusted functionality inclusion
+DL3007: "CWE-829"   # :latest tag — mutable, unpredictable base image

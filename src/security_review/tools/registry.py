@@ -9,6 +9,7 @@ import fnmatch
 import shutil
 from enum import Enum
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -43,7 +44,7 @@ class SecurityToolSpec(BaseModel, extra="forbid"):
     timeout_seconds: int = 300
     applies_to: list[str] = []
     target_type: str = "directory"
-    cwe_source: str = "metadata"
+    cwe_source: Literal["metadata", "rule_id_map", "mapping_file", "none"] = "metadata"
     optional: bool = False
 
     def build_command(self, target_path: str, output_path: str) -> list[str]:

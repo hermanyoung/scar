@@ -25,7 +25,7 @@
 - [x] Update `AGENTS.md`, `README.md`, `TODO.md`
 
 ## Refactor: Move taxonomy/ into config/taxonomy/ — DONE
-- [x] Move `cwe.yaml` and `bandit-cwe-map.yaml` → `config/taxonomy/`
+- [x] Move `cwe.yaml` and the tool rule→CWE maps → `config/taxonomy/`
 - [x] Move `owasp-top10-2021.yaml` and `cwe-top25-2024.yaml` → `docs/98-research/` (nothing loads them)
 - [x] Update path constants in `checks.py`, `sarif/taxonomy.py`
 - [x] Update `setup.py` data file entry
