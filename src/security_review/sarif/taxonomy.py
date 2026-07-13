@@ -32,6 +32,13 @@ def load_cwe_registry() -> dict[str, dict]:
     return data
 
 
+def cwe_exists(cwe_id: str) -> bool:
+    """True if the given ID ('CWE-89', '89', or 89) is in config/taxonomy/cwe.yaml."""
+    key = str(cwe_id).upper().removeprefix("CWE-").lstrip("0") or "0"
+    registry = load_cwe_registry()
+    return key in registry or str(cwe_id).removeprefix("CWE-") in registry
+
+
 def build_cwe_taxonomy(used_cwes: set[str]) -> SarifTaxonomy:
     """Build a SARIF taxonomies entry for the CWEs referenced in results.
 

@@ -87,10 +87,16 @@ def write_artifacts(state: PipelineState) -> Path:
             sast_locations.add((uri, line))
 
     llm_keys: set[tuple[str, str, int]] = set()
+    dropped_no_cwe = 0
 
     # Add holistic findings, deduplicating against SAST
     if state.holistic_result:
         for finding in state.holistic_result.findings:
+            if not finding.cwe_id:
+                logger.warning("merge.finding_dropped_no_cwe",
+                               rule_id=finding.rule_id, file_path=finding.file_path)
+                dropped_no_cwe += 1
+                continue
             if finding.line_number and (finding.file_path, finding.line_number) in sast_locations:
                 continue
             llm_key = (finding.rule_id, finding.file_path, finding.line_number or 0)
@@ -103,6 +109,11 @@ def write_artifacts(state: PipelineState) -> Path:
     # Add config review findings, deduplicating
     if state.config_review_result:
         for finding in state.config_review_result.findings:
+            if not finding.cwe_id:
+                logger.warning("merge.finding_dropped_no_cwe",
+                               rule_id=finding.rule_id, file_path=finding.file_path)
+                dropped_no_cwe += 1
+                continue
             if finding.line_number and (finding.file_path, finding.line_number) in sast_locations:
                 continue
             llm_key = (finding.rule_id, finding.file_path, finding.line_number or 0)
@@ -111,6 +122,14 @@ def write_artifacts(state: PipelineState) -> Path:
             base_sarif["runs"][0]["results"].append(_finding_to_sarif_result(finding))
             _ensure_rule(base_sarif, finding.rule_id, finding.title, finding.cwe_id)
             llm_keys.add(llm_key)
+
+    if dropped_no_cwe:
+        state.degrade(Degradation(
+            pass_name="merge", kind="parse_failed", subject="cwe_id",
+            detail=f"{dropped_no_cwe} LLM finding(s) had no parseable CWE ID and were "
+                   f"dropped from the report (AGENTS.md rule 5)",
+            count=dropped_no_cwe,
+        ))
 
     # Normalise CWE tags on all rules
     for run in base_sarif.get("runs", []):

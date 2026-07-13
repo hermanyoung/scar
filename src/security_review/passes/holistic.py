@@ -404,6 +404,12 @@ async def run_single_check(
         if review_result is None:
             review_result = HolisticReviewResult(findings=[], files_reviewed=included)
 
+    # P13: the check's CWE is known bookkeeping — never trust the LLM echo.
+    stamped_cwe = f"CWE-{check.cwe_id}"
+    review_result = review_result.model_copy(update={
+        "findings": [f.model_copy(update={"cwe_id": stamped_cwe}) for f in review_result.findings],
+    })
+
     # parse_failed=True when the LLM gave a non-empty response but we extracted nothing.
     # review_notes is set by the parser exactly when that happens.
     parse_failed = not review_result.findings and review_result.review_notes is not None

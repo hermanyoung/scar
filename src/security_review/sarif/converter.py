@@ -4,8 +4,22 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from security_review.errors import SARIFError
+from security_review.errors import ConfigurationError, SARIFError
 from security_review.sarif.types import SarifDocument
+
+_DEPENDENCY_CWE = "1395"
+
+
+def _dependency_cwe_tag() -> str:
+    """The CWE tag for third-party-dependency findings, validated against the taxonomy."""
+    from security_review.sarif.taxonomy import cwe_exists
+    if not cwe_exists(_DEPENDENCY_CWE):
+        raise ConfigurationError(
+            f"CWE-{_DEPENDENCY_CWE} is not in config/taxonomy/cwe.yaml — "
+            f"add it before converting dependency-scanner output.",
+            code="SYS_CWE_NOT_FOUND",
+        )
+    return f"external/cwe/cwe-{_DEPENDENCY_CWE}"
 
 
 def convert_pip_audit_to_sarif(json_path: Path | str) -> SarifDocument:
@@ -51,7 +65,7 @@ def convert_pip_audit_to_sarif(json_path: Path | str) -> SarifDocument:
                 rules[rule_id] = {
                     "id": rule_id,
                     "shortDescription": {"text": f"Vulnerable dependency: {pkg_name}"},
-                    "properties": {"tags": ["security", "sca", "external/cwe/cwe-1395"]},
+                    "properties": {"tags": ["security", "sca", _dependency_cwe_tag()]},
                 }
 
             results.append({
@@ -131,7 +145,7 @@ def convert_dotnet_vuln_to_sarif(json_path: Path | str) -> SarifDocument:
                                 "id": rule_id,
                                 "shortDescription": {"text": f"Vulnerable NuGet package: {pkg_id}"},
                                 "helpUri": advisory_url,
-                                "properties": {"tags": ["security", "sca", "external/cwe/cwe-1395"]},
+                                "properties": {"tags": ["security", "sca", _dependency_cwe_tag()]},
                             }
 
                         results.append({
