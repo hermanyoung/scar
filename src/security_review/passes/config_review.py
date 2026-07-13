@@ -10,7 +10,7 @@ from pydantic_ai import UsageLimits
 from security_review.agents.config_review.agent import build_config_review_agent
 from security_review.agents.deps import SecurityReviewDeps
 from security_review.context_builder import inline_files
-from security_review.errors import is_fatal_error
+from security_review.errors import is_context_overflow_error, is_fatal_error
 from security_review.model_capabilities import supports_native_json, CONFIG_FORMAT_JSON
 from security_review.models.config_review import ConfigReviewResult
 from security_review.models.degradation import Degradation, files_omitted_degradation
@@ -85,19 +85,9 @@ async def run_config_review(state: PipelineState) -> None:
         logger.info("pipeline.pass_completed", pass_number=5, finding_count=0)
         return
 
-    user_prompt, included, omitted = _build_config_review_prompt(
-        file_paths, state.target_path, max_tokens=state.config.llm.max_tokens_per_batch,
-    )
-    if omitted:
-        state.degrade(files_omitted_degradation("config_review", "config_review", omitted, len(file_paths)))
-
     # Native JSON: PydanticAI enforces ConfigReviewResult schema directly.
     # Prompted: append JSON format instruction, parse the text response.
-    if native_json:
-        output_type = ConfigReviewResult
-    else:
-        user_prompt = user_prompt + "\n\n" + CONFIG_FORMAT_JSON
-        output_type = str
+    output_type = ConfigReviewResult if native_json else str
 
     logger.info(
         "agent.started",
@@ -108,83 +98,110 @@ async def run_config_review(state: PipelineState) -> None:
     )
 
     agent = build_config_review_agent(state.config.llm.output_retries)
-    try:
-        result = await agent.run(
-            user_prompt,
-            deps=deps,
-            model=model,
-            model_settings=model_settings,
-            output_type=output_type,
-            usage_limits=UsageLimits(
-                request_limit=2,
-                total_tokens_limit=500_000,
-            ),
+
+    # Two attempts: on a context-overflow error the file list is halved once
+    # (top half — files are manifest-ordered by security weight) and retried.
+    # A second overflow falls through to the non-fatal check_failed path.
+    for attempt in range(2):
+        user_prompt, included, omitted = _build_config_review_prompt(
+            file_paths, state.target_path, max_tokens=state.config.llm.max_tokens_per_batch,
         )
+        if omitted:
+            state.degrade(files_omitted_degradation("config_review", "config_review", omitted, len(file_paths)))
+        if not native_json:
+            user_prompt = user_prompt + "\n\n" + CONFIG_FORMAT_JSON
 
-        # Normalize output to ConfigReviewResult, overriding files_reviewed (P13).
-        # Uses `included`, not `file_paths`: omitted files were never seen by the LLM.
-        output = result.output
-        if isinstance(output, ConfigReviewResult):
-            config_result = output.model_copy(update={"files_reviewed": included})
-        else:
-            config_result = parse_config_review_response(output, files_reviewed=included)
-            if config_result is None:
-                logger.warning("config_review.parse_failed", file_count=len(file_paths))
-                state.degrade(Degradation(
-                    pass_name="config_review", kind="parse_failed", subject="config_review",
-                    detail="LLM response was unparseable — config files were NOT reviewed",
-                    count=len(file_paths),
-                ))
-
-        if config_result is not None:
-            state.config_review_result = config_result
-
-        # Record cost
-        usage = result.usage()
-        state.cost_tracker.record(
-            agent_name="config_review",
-            batch_id="config-batch-000",
-            model_requested=model_string,
-            tokens_in=usage.request_tokens or 0,
-            tokens_out=usage.response_tokens or 0,
-        )
-
-        finding_count = len(config_result.findings) if config_result else 0
-
-        if state.ledger is not None:
-            state.ledger.append("config_review", findings=finding_count,
-                                 cumulative_usd=round(state.cost_tracker.total_spent, 4))
-
-        logger.info(
-            "agent.completed",
-            agent_name="config_review",
-            finding_count=finding_count,
-        )
-
-        if state.trace_enabled and config_result:
-            write_trace(
-                output_dir=state.output_dir,
-                agent_name="config_review",
-                trace_id="config-review",
-                prompt=user_prompt,
-                result=result,
-                output=config_result.model_dump(),
+        try:
+            result = await agent.run(
+                user_prompt,
+                deps=deps,
+                model=model,
+                model_settings=model_settings,
+                output_type=output_type,
+                usage_limits=UsageLimits(
+                    request_limit=2,
+                    total_tokens_limit=500_000,
+                ),
             )
 
-    except Exception as e:
-        logger.error(
-            "agent.failed",
-            agent_name="config_review",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        if is_fatal_error(e):
-            raise
-        state.degrade(Degradation(
-            pass_name="config_review", kind="check_failed", subject="config_review",
-            detail=f"agent call failed ({type(e).__name__}) — {len(file_paths)} config files were NOT reviewed",
-            count=len(file_paths),
-        ))
+            # Normalize output to ConfigReviewResult, overriding files_reviewed (P13).
+            # Uses `included`, not `file_paths`: omitted files were never seen by the LLM.
+            output = result.output
+            if isinstance(output, ConfigReviewResult):
+                config_result = output.model_copy(update={"files_reviewed": included})
+            else:
+                config_result = parse_config_review_response(output, files_reviewed=included)
+                if config_result is None:
+                    logger.warning("config_review.parse_failed", file_count=len(file_paths))
+                    state.degrade(Degradation(
+                        pass_name="config_review", kind="parse_failed", subject="config_review",
+                        detail="LLM response was unparseable — config files were NOT reviewed",
+                        count=len(file_paths),
+                    ))
+
+            if config_result is not None:
+                state.config_review_result = config_result
+
+            # Record cost
+            usage = result.usage()
+            state.cost_tracker.record(
+                agent_name="config_review",
+                batch_id="config-batch-000",
+                model_requested=model_string,
+                tokens_in=usage.request_tokens or 0,
+                tokens_out=usage.response_tokens or 0,
+            )
+
+            finding_count = len(config_result.findings) if config_result else 0
+
+            if state.ledger is not None:
+                state.ledger.append("config_review", findings=finding_count,
+                                     cumulative_usd=round(state.cost_tracker.total_spent, 4))
+
+            logger.info(
+                "agent.completed",
+                agent_name="config_review",
+                finding_count=finding_count,
+            )
+
+            if state.trace_enabled and config_result:
+                write_trace(
+                    output_dir=state.output_dir,
+                    agent_name="config_review",
+                    trace_id="config-review",
+                    prompt=user_prompt,
+                    result=result,
+                    output=config_result.model_dump(),
+                )
+            break
+
+        except Exception as e:
+            logger.error(
+                "agent.failed",
+                agent_name="config_review",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            if attempt == 0 and is_context_overflow_error(e):
+                half = file_paths[: max(1, len(file_paths) // 2)]
+                dropped = file_paths[len(half):]
+                state.degrade(Degradation(
+                    pass_name="config_review", kind="files_omitted", subject="config_review",
+                    detail=f"prompt exceeded the model context window — retrying config review "
+                           f"with the top {len(half)} of {len(file_paths)} files; "
+                           f"{len(dropped)} files NOT reviewed",
+                    count=len(dropped),
+                ))
+                file_paths = half
+                continue
+            if is_fatal_error(e):
+                raise
+            state.degrade(Degradation(
+                pass_name="config_review", kind="check_failed", subject="config_review",
+                detail=f"agent call failed ({type(e).__name__}) — {len(file_paths)} config files were NOT reviewed",
+                count=len(file_paths),
+            ))
+            break
 
     logger.info(
         "pipeline.pass_completed",

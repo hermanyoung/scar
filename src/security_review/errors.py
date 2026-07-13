@@ -33,6 +33,19 @@ class ConfigurationError(SecurityReviewError):
     ...
 
 
+_OVERFLOW_PATTERNS = (
+    "context length", "context_length_exceeded", "maximum context",
+    "prompt is too long", "request too large", "token limit",
+    "input is too long", "exceeds the maximum",
+)
+
+
+def is_context_overflow_error(exc: Exception) -> bool:
+    """True if the exception message indicates the prompt exceeded the model's context window."""
+    msg = str(exc).lower()
+    return any(p in msg for p in _OVERFLOW_PATTERNS)
+
+
 def is_fatal_error(exc: Exception) -> bool:
     """Determine if an exception is fatal and should halt the pipeline.
 

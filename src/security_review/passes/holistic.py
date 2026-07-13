@@ -25,7 +25,7 @@ from security_review.agents.deps import SecurityReviewDeps
 from security_review.agents.holistic.agent import build_holistic_agent
 from security_review.checks import CWECheck, load_cwe_checks, select_files_for_check
 from security_review.context_builder import inline_files
-from security_review.errors import is_fatal_error
+from security_review.errors import is_context_overflow_error, is_fatal_error
 from security_review.model_capabilities import supports_native_json, HOLISTIC_FORMAT_MARKDOWN
 from security_review.models.degradation import Degradation, files_omitted_degradation
 from security_review.models.findings import HolisticFinding, HolisticReviewResult
@@ -47,6 +47,7 @@ class _Outcome(Enum):
     COMPLETED = auto()       # findings extracted (possibly empty — LLM said "no findings")
     RETRY = auto()           # transient failure or parse failure — worth retrying
     FATAL = auto()           # auth/config error — abort the entire pass
+    OVERFLOW = auto()        # prompt exceeded the context window — retry with half the files
 
 
 def _classify_result(
@@ -61,6 +62,9 @@ def _classify_result(
     if isinstance(result, Exception):
         if is_fatal_error(result):
             return _Outcome.FATAL, [], []
+        if is_context_overflow_error(result):
+            logger.warning("holistic.check_overflow", cwe_id=check.cwe_id, error=str(result))
+            return _Outcome.OVERFLOW, [], []
         logger.warning(
             "holistic.check_failed",
             cwe_id=check.cwe_id,
@@ -197,6 +201,17 @@ async def run_holistic(state: PipelineState) -> None:
                 raise result  # type: ignore[misc]
             elif outcome == _Outcome.RETRY:
                 failed_checks.append((check, file_paths))
+            elif outcome == _Outcome.OVERFLOW:
+                half = file_paths[: max(1, len(file_paths) // 2)]
+                dropped = file_paths[len(half):]
+                state.degrade(Degradation(
+                    pass_name="holistic", kind="files_omitted", subject=f"CWE-{check.cwe_id}",
+                    detail=f"prompt exceeded the model context window — retrying CWE-{check.cwe_id} "
+                           f"with the top {len(half)} of {len(file_paths)} files; "
+                           f"{len(dropped)} files NOT reviewed for this CWE",
+                    count=len(dropped),
+                ))
+                failed_checks.append((check, half))
             else:
                 all_findings.extend(findings)
                 all_files_reviewed.update(files_reviewed)
@@ -261,7 +276,8 @@ async def run_holistic(state: PipelineState) -> None:
                 else:
                     logger.info("holistic.retry_no_findings", cwe_id=check.cwe_id)
             else:
-                # Second RETRY — give up on this check.
+                # Second RETRY (or an OVERFLOW on the already-halved retry —
+                # no further halvings) — give up on this check.
                 checks_failed += 1
                 logger.error("holistic.check_failed_after_retry", cwe_id=check.cwe_id)
                 state.degrade(Degradation(
