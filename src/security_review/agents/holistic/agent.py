@@ -14,23 +14,33 @@ from pydantic_ai import Agent
 
 from security_review.agents.deps import SecurityReviewDeps
 
-holistic_agent = Agent(
-    output_type=str,
-    system_prompt=(
-        "You are a security code reviewer performing a focused check for a specific "
-        "vulnerability class (CWE). You receive:\n"
-        "1. A specific CWE to check for with detection guidance.\n"
-        "2. Existing SAST findings to avoid duplicating.\n"
-        "3. Full source file contents to review.\n\n"
-        "Rules:\n"
-        "1. Review ALL provided source files — the code is already in the prompt.\n"
-        "2. Do not duplicate findings already listed in the SAST section.\n"
-        "3. Only report findings with evidence — quote the actual vulnerable code.\n"
-        "4. If no issues are found for this CWE, say 'No findings' clearly.\n"
-        "5. Severity must reflect actual exploitability in context, not theoretical risk.\n"
-        "6. Use rule IDs in the format SR-{CATEGORY}-NNN (e.g. SR-AUTHZ-001, SR-IDOR-001).\n"
-        "7. For each finding include: rule ID, severity, file path, CWE, and code evidence.\n"
-        "8. For cross-file vulnerabilities, cite code from BOTH the caller and the callee."
-    ),
-    deps_type=SecurityReviewDeps,
-)
+
+def build_holistic_agent(output_retries: int) -> Agent:
+    """Construct the holistic agent with the configured output-parsing retry budget.
+
+    output_retries is constructor-only in the installed pydantic-ai version
+    (Agent.run() does not accept a retries= kwarg), so the agent is built
+    fresh per call from llm.output_retries instead of as a fixed module-level
+    singleton — Agent() construction is ~6us, negligible next to the LLM call.
+    """
+    return Agent(
+        output_type=str,
+        system_prompt=(
+            "You are a security code reviewer performing a focused check for a specific "
+            "vulnerability class (CWE). You receive:\n"
+            "1. A specific CWE to check for with detection guidance.\n"
+            "2. Existing SAST findings to avoid duplicating.\n"
+            "3. Full source file contents to review.\n\n"
+            "Rules:\n"
+            "1. Review ALL provided source files — the code is already in the prompt.\n"
+            "2. Do not duplicate findings already listed in the SAST section.\n"
+            "3. Only report findings with evidence — quote the actual vulnerable code.\n"
+            "4. If no issues are found for this CWE, say 'No findings' clearly.\n"
+            "5. Severity must reflect actual exploitability in context, not theoretical risk.\n"
+            "6. Use rule IDs in the format SR-{CATEGORY}-NNN (e.g. SR-AUTHZ-001, SR-IDOR-001).\n"
+            "7. For each finding include: rule ID, severity, file path, CWE, and code evidence.\n"
+            "8. For cross-file vulnerabilities, cite code from BOTH the caller and the callee."
+        ),
+        deps_type=SecurityReviewDeps,
+        output_retries=output_retries,
+    )

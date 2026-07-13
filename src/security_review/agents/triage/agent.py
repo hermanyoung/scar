@@ -13,20 +13,31 @@ from pydantic_ai import Agent, RunContext
 
 from security_review.agents.deps import SecurityReviewDeps, load_prompt
 
-triage_agent = Agent(
-    output_type=str,
-    system_prompt=(
-        "You are a security code reviewer performing triage on static analysis findings. "
-        "The source code is provided directly in the prompt — do NOT call any tools.\n\n"
-        "For each finding, state your verdict clearly:\n"
-        "- **Verdict:** CONFIRMED | FALSE_POSITIVE | NEEDS_CONTEXT\n"
-        "- **Confidence:** 0.0 to 1.0\n"
-        "- **Rationale:** explain WHY in 1-3 sentences"
-    ),
-    deps_type=SecurityReviewDeps,
-)
 
+def build_triage_agent(output_retries: int) -> Agent:
+    """Construct the triage agent with the configured output-parsing retry budget.
 
-@triage_agent.system_prompt
-async def triage_system_prompt(ctx: RunContext[SecurityReviewDeps]) -> str:
-    return load_prompt("triage")
+    output_retries is constructor-only in the installed pydantic-ai version
+    (Agent.run() does not accept a retries= kwarg), so the agent is built
+    fresh per call from llm.output_retries instead of as a fixed module-level
+    singleton — Agent() construction is ~6us, negligible next to the LLM call.
+    """
+    agent = Agent(
+        output_type=str,
+        system_prompt=(
+            "You are a security code reviewer performing triage on static analysis findings. "
+            "The source code is provided directly in the prompt — do NOT call any tools.\n\n"
+            "For each finding, state your verdict clearly:\n"
+            "- **Verdict:** CONFIRMED | FALSE_POSITIVE | NEEDS_CONTEXT\n"
+            "- **Confidence:** 0.0 to 1.0\n"
+            "- **Rationale:** explain WHY in 1-3 sentences"
+        ),
+        deps_type=SecurityReviewDeps,
+        output_retries=output_retries,
+    )
+
+    @agent.system_prompt
+    async def _triage_system_prompt(ctx: RunContext[SecurityReviewDeps]) -> str:
+        return load_prompt("triage")
+
+    return agent

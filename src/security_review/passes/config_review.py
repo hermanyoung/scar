@@ -7,7 +7,7 @@ from __future__ import annotations
 import structlog
 from pydantic_ai import UsageLimits
 
-from security_review.agents.config_review.agent import config_review_agent
+from security_review.agents.config_review.agent import build_config_review_agent
 from security_review.agents.deps import SecurityReviewDeps
 from security_review.context_builder import inline_files
 from security_review.errors import is_fatal_error
@@ -107,8 +107,9 @@ async def run_config_review(state: PipelineState) -> None:
         native_json=native_json,
     )
 
+    agent = build_config_review_agent(state.config.llm.output_retries)
     try:
-        result = await config_review_agent.run(
+        result = await agent.run(
             user_prompt,
             deps=deps,
             model=model,

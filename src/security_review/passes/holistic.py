@@ -22,7 +22,7 @@ from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
 from security_review.agents.deps import SecurityReviewDeps
-from security_review.agents.holistic.agent import holistic_agent
+from security_review.agents.holistic.agent import build_holistic_agent
 from security_review.checks import CWECheck, load_cwe_checks, select_files_for_check
 from security_review.context_builder import inline_files
 from security_review.errors import is_fatal_error
@@ -370,7 +370,8 @@ async def run_single_check(
         output_type = str
         prompt = prompt + "\n\n" + HOLISTIC_FORMAT_MARKDOWN
 
-    result = await holistic_agent.run(
+    agent = build_holistic_agent(state.config.llm.output_retries)
+    result = await agent.run(
         prompt,
         deps=deps,
         model=model,

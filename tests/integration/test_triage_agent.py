@@ -3,7 +3,7 @@
 Per ADR-004, agents use output_type=str — the agent never returns a
 validated TriagedFinding/TriageResult directly. Parsing into TriagedFinding
 happens downstream via output_parser.parse_triage_response(), which is what
-passes/triage.py actually calls after triage_agent.run(). These tests
+passes/triage.py actually calls after the triage agent's run(). These tests
 exercise that same two-step contract, not the raw agent output.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
 
 from security_review.agents.deps import SecurityReviewDeps
-from security_review.agents.triage.agent import triage_agent
+from security_review.agents.triage.agent import build_triage_agent
 from security_review.budget import CostTracker
 from security_review.config import load_config
 from security_review.models.findings import TriageVerdict
@@ -82,6 +82,7 @@ async def test_triage_agent_output_validates(mock_deps):
     ones, per Principle P13.
     """
     model = FunctionModel(_mock_triage_response)
+    triage_agent = build_triage_agent(mock_deps.config.llm.output_retries)
     with triage_agent.override(model=model):
         result = await triage_agent.run(
             "Triage these findings",

@@ -18,7 +18,7 @@ from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
 from security_review.agents.deps import SecurityReviewDeps
-from security_review.agents.triage.agent import triage_agent
+from security_review.agents.triage.agent import build_triage_agent
 from security_review.context_builder import format_context_window, read_file_content
 from security_review.errors import is_fatal_error
 from security_review.model_capabilities import supports_native_json, TRIAGE_FORMAT_MARKDOWN
@@ -300,7 +300,8 @@ async def _triage_single_finding(
         user_prompt = prompt + "\n\n" + TRIAGE_FORMAT_MARKDOWN
         output_type = str
 
-    result = await triage_agent.run(
+    agent = build_triage_agent(state.config.llm.output_retries)
+    result = await agent.run(
         user_prompt,
         deps=deps,
         model=model,
