@@ -9,9 +9,9 @@ providers return parseable JSON, prompted providers return markdown.
 """
 from __future__ import annotations
 
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent
 
-from security_review.agents.deps import SecurityReviewDeps, load_prompt
+from security_review.agents.deps import SecurityReviewDeps, register_prompt_loader
 
 
 def build_triage_agent(output_retries: int) -> Agent:
@@ -35,9 +35,5 @@ def build_triage_agent(output_retries: int) -> Agent:
         deps_type=SecurityReviewDeps,
         output_retries=output_retries,
     )
-
-    @agent.system_prompt
-    async def _triage_system_prompt(ctx: RunContext[SecurityReviewDeps]) -> str:
-        return load_prompt("triage")
-
+    register_prompt_loader(agent, "triage")
     return agent
