@@ -99,7 +99,7 @@ class CodexModel(Model):
     GPT-5.4 reliably follows JSON format instructions.
     """
 
-    def __init__(self, model_id: str = "gpt-5.4") -> None:
+    def __init__(self, model_id: str) -> None:
         self._model_id = model_id
         self._profile = ModelProfile(
             supports_json_schema_output=False,

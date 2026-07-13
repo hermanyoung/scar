@@ -173,9 +173,9 @@ class CopilotModel(Model):
 
     def __init__(
         self,
-        model_id: str = "claude-sonnet-4.6",
-        session_timeout: float = 90.0,
-        backoff_seconds: float = 10.0,
+        model_id: str,
+        session_timeout: float,
+        backoff_seconds: float,
     ) -> None:
         from pydantic_ai.profiles import ModelProfile
 

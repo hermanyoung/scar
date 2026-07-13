@@ -86,7 +86,7 @@ class ClaudeModel(Model):
     Zero tools. One prompt in, one text response out. Billed to your subscription.
     """
 
-    def __init__(self, model_id: str = "claude-sonnet-4-5-20250929") -> None:
+    def __init__(self, model_id: str) -> None:
         from pydantic_ai.profiles import ModelProfile
 
         self._model_id = model_id

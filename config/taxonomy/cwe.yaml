@@ -368,6 +368,15 @@
     - SELECT ... WHERE id = ? without AND user_id = ?
     The key question: can User A access User B's data by changing an ID
     in the URL or request body?
+    Check the service/repository layer too — an ownership check in the
+    controller does not cover a service method callable from elsewhere.
+    Severity rubric (apply consistently):
+    - CRITICAL: write operations (UPDATE/DELETE/state change) reachable
+      without an ownership check.
+    - HIGH: bulk read of another user's records.
+    - MEDIUM: single-record read without an ownership check.
+    Evidence: name the missing ownership field/filter for every finding.
+    Create a separate finding for each vulnerable call site — do not consolidate.
 
 "918":
   name: "Server-Side Request Forgery (SSRF)"
