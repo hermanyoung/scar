@@ -80,7 +80,7 @@ class TriagedFinding(BaseModel):
 class TriageResult(BaseModel):
     """Batch output of Pass 3."""
 
-    findings: list[TriagedFinding] = Field(min_length=1)
+    findings: list[TriagedFinding] = Field(default_factory=list)
     total_confirmed: int = Field(ge=0)
     total_false_positive: int = Field(ge=0)
     total_needs_context: int = Field(ge=0)

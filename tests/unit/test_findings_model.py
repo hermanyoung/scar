@@ -67,14 +67,15 @@ def test_triaged_finding_normalises_confidence_percentage():
     assert f.confidence == 0.95
 
 
-def test_triage_result_requires_findings():
-    with pytest.raises(ValidationError):
-        TriageResult(
-            findings=[],
-            total_confirmed=0,
-            total_false_positive=0,
-            total_needs_context=0,
-        )
+def test_triage_result_allows_empty():
+    """An empty triage result is legitimate (all calls failed, or zero findings passed the filter)."""
+    result = TriageResult(
+        findings=[],
+        total_confirmed=0,
+        total_false_positive=0,
+        total_needs_context=0,
+    )
+    assert result.findings == []
 
 
 def test_holistic_finding_normalises_rule_id():
