@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import time
 from collections.abc import Awaitable, Callable
+from enum import Enum, auto
 
 import structlog
 
 from security_review.errors import is_fatal_error
 from security_review.models.degradation import Degradation
+from security_review.passes.checkpoint import completed_passes, init_run, save_pass
 from security_review.passes.state import PassError, PipelineState, ProgressCallback
 
 logger = structlog.get_logger()
@@ -81,14 +83,60 @@ async def _run_pass(
         return False
 
 
+class _PassOutcome(Enum):
+    """How a pass concluded within run_pipeline."""
+    RAN = auto()        # executed and completed — checkpoint saved
+    RESTORED = auto()   # skipped: checkpoint rehydrated by --resume
+    FAILED = auto()     # failed outright — proceed straight to merge
+
+
+async def _run_or_restore(
+    state: PipelineState,
+    progress: ProgressCallback,
+    completed: set[str],
+    pass_number: int,
+    pass_name: str,
+    run_fn: Callable[[PipelineState], Awaitable[None]],
+    running_detail: str,
+) -> _PassOutcome:
+    """Run one pass, or skip it when its checkpoint was restored (--resume).
+
+    A successfully-run pass is checkpointed immediately so a later crash
+    keeps its work (plan 020 Phase 2).
+    """
+    progress(pass_number, pass_name, "running", running_detail)
+    if pass_name in completed:
+        progress(pass_number, pass_name, "done", "restored from checkpoint")
+        return _PassOutcome.RESTORED
+    if not await _run_pass(state, progress, pass_number, pass_name, run_fn):
+        return _PassOutcome.FAILED
+    save_pass(state, pass_name)
+    return _PassOutcome.RAN
+
+
+def _stream_partial(state: PipelineState) -> None:
+    """Write the partial SARIF after an LLM pass when --stream is on."""
+    if not state.stream_enabled:
+        return
+    from security_review.passes.merge import write_partial_sarif
+    try:
+        write_partial_sarif(state)
+    except Exception as e:
+        # Streaming is best-effort observability — never kill the run for it.
+        logger.warning("stream.partial_failed", error=str(e), error_type=type(e).__name__)
+
+
 async def run_pipeline(state: PipelineState) -> "Path":
-    """Execute the 5-pass pipeline. Returns path to final SARIF.
+    """Execute the pipeline (7 passes in full mode). Returns path to final SARIF.
 
     If a pass fails outright, remaining passes are skipped (they generally
     depend on earlier state) but the pipeline still proceeds to merge, so
     whatever completed before the failure is written to a report instead of
     being silently discarded. Failures are recorded on state.errors and
     surfaced in the report (Principle P6 — partial failures must be visible).
+
+    Each completed pass is checkpointed to {run_dir}/state/ so a killed run
+    can be continued with --resume (state.resume skips restored passes).
     """
     from security_review.passes.config_review import run_config_review
     from security_review.passes.holistic import run_holistic
@@ -122,75 +170,98 @@ async def run_pipeline(state: PipelineState) -> "Path":
     else:
         total_passes = 3
 
+    # Checkpointing (plan 020 Phase 2): snapshot config + output paths, and
+    # on --resume, skip passes whose checkpoints were rehydrated by the CLI.
+    init_run(state)
+    completed = completed_passes(state.output_dir) if state.resume else set()
+    if completed:
+        logger.info("pipeline.resuming", restored_passes=sorted(completed))
+
     # Pass 1: Inventory
-    progress(1, "inventory", "running", "Discovering files...")
-    if await _run_pass(state, progress, 1, "inventory", run_inventory):
+    outcome = await _run_or_restore(state, progress, completed, 1, "inventory",
+                                    run_inventory, "Discovering files...")
+    if outcome is _PassOutcome.FAILED:
+        return await _merge_and_finish(state, progress, total_passes, start)
+    if outcome is _PassOutcome.RAN:
         file_count = state.manifest.total_files if state.manifest else 0
         langs = state.manifest.languages if state.manifest else {}
         lang_str = ", ".join(f"{v} {k}" for k, v in sorted(langs.items(), key=lambda x: -x[1]) if v > 0)
         progress(1, "inventory", "done", f"{file_count} files ({lang_str})")
-    else:
-        return await _merge_and_finish(state, progress, total_passes, start)
 
     # Pass 2: SAST
-    progress(2, "sast", "running", "Running SAST tools...")
-    if await _run_pass(state, progress, 2, "sast", run_sast):
+    outcome = await _run_or_restore(state, progress, completed, 2, "sast",
+                                    run_sast, "Running SAST tools...")
+    if outcome is _PassOutcome.FAILED:
+        return await _merge_and_finish(state, progress, total_passes, start)
+    if outcome is _PassOutcome.RAN:
         sast_count = sum(
             len(run.get("results", []))
             for run in (state.sast_sarif or {}).get("runs", [])
         )
         progress(2, "sast", "done", f"{sast_count} findings")
-    else:
-        return await _merge_and_finish(state, progress, total_passes, start)
 
     if mode == "full":
         # Pass 3: Triage
-        progress(3, "triage", "running", "LLM triaging SAST findings...")
-        if not await _run_pass(state, progress, 3, "triage", run_triage):
+        outcome = await _run_or_restore(state, progress, completed, 3, "triage",
+                                        run_triage, "LLM triaging SAST findings...")
+        if outcome is _PassOutcome.FAILED:
             return await _merge_and_finish(state, progress, total_passes, start)
-        if state.triage_result:
-            t = state.triage_result
-            progress(3, "triage", "done",
-                     f"{t.total_confirmed} confirmed, {t.total_false_positive} FP, "
-                     f"{t.total_needs_context} needs context")
-        elif any(d.pass_name == "triage" for d in state.degradations):
-            progress(3, "triage", "done", "0 triaged — see coverage gaps")
-        else:
-            progress(3, "triage", "done", "skipped (no findings to triage)")
+        if outcome is _PassOutcome.RAN:
+            if state.triage_result:
+                t = state.triage_result
+                progress(3, "triage", "done",
+                         f"{t.total_confirmed} confirmed, {t.total_false_positive} FP, "
+                         f"{t.total_needs_context} needs context")
+            elif any(d.pass_name == "triage" for d in state.degradations):
+                progress(3, "triage", "done", "0 triaged — see coverage gaps")
+            else:
+                progress(3, "triage", "done", "skipped (no findings to triage)")
+            _stream_partial(state)
 
         # Pass 4: Holistic
-        progress(4, "holistic", "running", "LLM cross-file security review...")
-        if not await _run_pass(state, progress, 4, "holistic", run_holistic):
+        outcome = await _run_or_restore(state, progress, completed, 4, "holistic",
+                                        run_holistic, "LLM cross-file security review...")
+        if outcome is _PassOutcome.FAILED:
             return await _merge_and_finish(state, progress, total_passes, start)
-        h_count = len(state.holistic_result.findings) if state.holistic_result else 0
-        progress(4, "holistic", "done", f"{h_count} new findings")
+        if outcome is _PassOutcome.RAN:
+            h_count = len(state.holistic_result.findings) if state.holistic_result else 0
+            progress(4, "holistic", "done", f"{h_count} new findings")
+            _stream_partial(state)
 
         # Pass 5: Config review
-        progress(5, "config_review", "running", "LLM reviewing config files...")
-        if not await _run_pass(state, progress, 5, "config_review", run_config_review):
+        outcome = await _run_or_restore(state, progress, completed, 5, "config_review",
+                                        run_config_review, "LLM reviewing config files...")
+        if outcome is _PassOutcome.FAILED:
             return await _merge_and_finish(state, progress, total_passes, start)
-        c_count = len(state.config_review_result.findings) if state.config_review_result else 0
-        progress(5, "config_review", "done", f"{c_count} config findings")
+        if outcome is _PassOutcome.RAN:
+            c_count = len(state.config_review_result.findings) if state.config_review_result else 0
+            progress(5, "config_review", "done", f"{c_count} config findings")
 
         # Pass 6: Verify — independent adversarial verdicts on LLM findings
-        progress(6, "verify", "running", "LLM verifying discovered findings...")
-        if not await _run_pass(state, progress, 6, "verify", run_verification):
+        outcome = await _run_or_restore(state, progress, completed, 6, "verify",
+                                        run_verification, "LLM verifying discovered findings...")
+        if outcome is _PassOutcome.FAILED:
             return await _merge_and_finish(state, progress, total_passes, start)
-        progress(6, "verify", "done", _verify_done_detail(state))
+        if outcome is _PassOutcome.RAN:
+            progress(6, "verify", "done", _verify_done_detail(state))
+            _stream_partial(state)
 
     elif mode == "sast-triage":
         # Pass 3: Triage
-        progress(3, "triage", "running", "LLM triaging SAST findings...")
-        if not await _run_pass(state, progress, 3, "triage", run_triage):
+        outcome = await _run_or_restore(state, progress, completed, 3, "triage",
+                                        run_triage, "LLM triaging SAST findings...")
+        if outcome is _PassOutcome.FAILED:
             return await _merge_and_finish(state, progress, total_passes, start)
-        if state.triage_result:
-            t = state.triage_result
-            progress(3, "triage", "done",
-                     f"{t.total_confirmed} confirmed, {t.total_false_positive} FP")
-        elif any(d.pass_name == "triage" for d in state.degradations):
-            progress(3, "triage", "done", "0 triaged — see coverage gaps")
-        else:
-            progress(3, "triage", "done", "skipped")
+        if outcome is _PassOutcome.RAN:
+            if state.triage_result:
+                t = state.triage_result
+                progress(3, "triage", "done",
+                         f"{t.total_confirmed} confirmed, {t.total_false_positive} FP")
+            elif any(d.pass_name == "triage" for d in state.degradations):
+                progress(3, "triage", "done", "0 triaged — see coverage gaps")
+            else:
+                progress(3, "triage", "done", "skipped")
+            _stream_partial(state)
 
     return await _merge_and_finish(state, progress, total_passes, start)
 

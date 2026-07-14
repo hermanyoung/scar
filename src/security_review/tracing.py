@@ -16,6 +16,8 @@ from typing import Any
 import structlog
 from pydantic_ai import AgentRunResult
 
+from security_review.fsio import atomic_write_json
+
 logger = structlog.get_logger()
 
 
@@ -58,7 +60,6 @@ def write_trace(
         trace["output"] = output
 
     trace_path = traces_dir / f"{trace_id}.json"
-    with open(trace_path, "w", encoding="utf-8") as f:
-        json.dump(trace, f, indent=2, default=str)
+    atomic_write_json(trace_path, trace)
 
     logger.debug("trace.written", agent=agent_name, trace_id=trace_id, path=str(trace_path))

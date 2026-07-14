@@ -7,6 +7,7 @@ Produces:
 """
 from __future__ import annotations
 
+import copy
 import json
 import shutil
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from pathlib import Path
 import structlog
 
 from security_review import __version__
+from security_review.fsio import atomic_write_json
 from security_review.models.degradation import Degradation
 from security_review.models.findings import Severity
 from security_review.models.report import SecurityReport
@@ -70,58 +72,8 @@ def write_artifacts(state: PipelineState) -> Path:
         },
     })
 
-    # Two separate dedup sets with distinct purposes:
-    #
-    # sast_locations — (file, line) pairs from SAST results. Only populated for
-    #   line-level findings (line > 0). Used to suppress LLM findings that
-    #   duplicate a specific SAST location.
-    #
-    # llm_keys — (rule_id, file, line) for already-added LLM findings. Includes
-    #   rule_id so two different file-level findings (line=None → 0) in the same
-    #   file are not incorrectly treated as duplicates of each other.
-    target_root = str(state.target_path.resolve())
-    sast_locations: set[tuple[str, int]] = set()
-    for result in base_sarif["runs"][0].get("results", []):
-        uri, line = get_result_location(result, target_root=target_root)
-        if uri and line:
-            sast_locations.add((uri, line))
-
-    llm_keys: set[tuple[str, str, int]] = set()
-    dropped_no_cwe = 0
-
-    # Add holistic findings, deduplicating against SAST
-    if state.holistic_result:
-        for finding in state.holistic_result.findings:
-            if not finding.cwe_id:
-                logger.warning("merge.finding_dropped_no_cwe",
-                               rule_id=finding.rule_id, file_path=finding.file_path)
-                dropped_no_cwe += 1
-                continue
-            if finding.line_number and (finding.file_path, finding.line_number) in sast_locations:
-                continue
-            llm_key = (finding.rule_id, finding.file_path, finding.line_number or 0)
-            if llm_key in llm_keys:
-                continue
-            base_sarif["runs"][0]["results"].append(_finding_to_sarif_result(finding))
-            _ensure_rule(base_sarif, finding.rule_id, finding.title, finding.cwe_id)
-            llm_keys.add(llm_key)
-
-    # Add config review findings, deduplicating
-    if state.config_review_result:
-        for finding in state.config_review_result.findings:
-            if not finding.cwe_id:
-                logger.warning("merge.finding_dropped_no_cwe",
-                               rule_id=finding.rule_id, file_path=finding.file_path)
-                dropped_no_cwe += 1
-                continue
-            if finding.line_number and (finding.file_path, finding.line_number) in sast_locations:
-                continue
-            llm_key = (finding.rule_id, finding.file_path, finding.line_number or 0)
-            if llm_key in llm_keys:
-                continue
-            base_sarif["runs"][0]["results"].append(_finding_to_sarif_result(finding))
-            _ensure_rule(base_sarif, finding.rule_id, finding.title, finding.cwe_id)
-            llm_keys.add(llm_key)
+    # Add holistic + config-review findings, deduplicating against SAST.
+    dropped_no_cwe = _merge_llm_findings(base_sarif, state)
 
     if dropped_no_cwe:
         state.degrade(Degradation(
@@ -247,6 +199,94 @@ async def run_merge(state: PipelineState) -> Path:
     path = write_artifacts(state)
     tmp_dir = state.work_dir / "var" / "tmp" / state.run_id
     shutil.rmtree(tmp_dir, ignore_errors=True)
+    return path
+
+
+def _merge_llm_findings(base_sarif: dict, state: PipelineState) -> int:
+    """Append holistic + config-review findings to base_sarif, deduplicated.
+
+    Shared by write_artifacts (final merge) and write_partial_sarif
+    (--stream). Returns the count of findings dropped for a missing CWE —
+    the caller decides whether to record the degradation (the final merge
+    does; the streaming path must not double-record).
+
+    Two separate dedup sets with distinct purposes:
+
+    sast_locations — (file, line) pairs from SAST results. Only populated for
+      line-level findings (line > 0). Used to suppress LLM findings that
+      duplicate a specific SAST location.
+
+    llm_keys — (rule_id, file, line) for already-added LLM findings. Includes
+      rule_id so two different file-level findings (line=None → 0) in the same
+      file are not incorrectly treated as duplicates of each other.
+    """
+    target_root = str(state.target_path.resolve())
+    sast_locations: set[tuple[str, int]] = set()
+    for result in base_sarif["runs"][0].get("results", []):
+        uri, line = get_result_location(result, target_root=target_root)
+        if uri and line:
+            sast_locations.add((uri, line))
+
+    llm_keys: set[tuple[str, str, int]] = set()
+    dropped_no_cwe = 0
+
+    llm_findings = []
+    if state.holistic_result:
+        llm_findings += state.holistic_result.findings
+    if state.config_review_result:
+        llm_findings += state.config_review_result.findings
+
+    for finding in llm_findings:
+        if not finding.cwe_id:
+            logger.warning("merge.finding_dropped_no_cwe",
+                           rule_id=finding.rule_id, file_path=finding.file_path)
+            dropped_no_cwe += 1
+            continue
+        if finding.line_number and (finding.file_path, finding.line_number) in sast_locations:
+            continue
+        llm_key = (finding.rule_id, finding.file_path, finding.line_number or 0)
+        if llm_key in llm_keys:
+            continue
+        base_sarif["runs"][0]["results"].append(_finding_to_sarif_result(finding))
+        _ensure_rule(base_sarif, finding.rule_id, finding.title, finding.cwe_id)
+        llm_keys.add(llm_key)
+
+    return dropped_no_cwe
+
+
+def write_partial_sarif(state: PipelineState) -> Path:
+    """Write the current merged view to security-report.partial.sarif (--stream).
+
+    Called after each LLM pass so a killed run still has a readable partial
+    report. Works on a deep copy — repeated calls never mutate live state —
+    and reuses the final merge's conversion/dedup/scoring helpers. Records
+    no degradations (the final merge records those once).
+    """
+    base = copy.deepcopy(state.sast_sarif) if state.sast_sarif else {
+        "version": "2.1.0",
+        "runs": [{"tool": {"driver": {"name": "security-review", "rules": []}}, "results": []}],
+    }
+
+    _merge_llm_findings(base, state)
+
+    for run in base.get("runs", []):
+        for rule in run.get("tool", {}).get("driver", {}).get("rules", []):
+            normalise_cwe_tags(rule)
+
+    cwe_ids = extract_cwe_ids_from_sarif(base)
+    if cwe_ids:
+        try:
+            inject_taxonomy(base, cwe_ids)
+        except Exception as e:
+            logger.warning("stream.taxonomy_failed", error=str(e), error_type=type(e).__name__)
+
+    exposure_index = build_exposure_index(state.manifest)
+    _score_all_findings(base, state, exposure_index)
+
+    path = state.output_dir / "security-report.partial.sarif"
+    atomic_write_json(path, base)
+    logger.info("stream.partial_written", path=str(path),
+                results=sum(len(r.get("results", [])) for r in base.get("runs", [])))
     return path
 
 

@@ -51,7 +51,7 @@ class PassError:
 
 @dataclass
 class PipelineState:
-    """Carries inter-pass state through the 5-pass pipeline.
+    """Carries inter-pass state through the pipeline (7 passes in full mode).
 
     Created by cli.py, passed to each pass function, mutated in place.
     """
@@ -93,6 +93,14 @@ class PipelineState:
 
     # Tracing (--trace flag)
     trace_enabled: bool = False
+
+    # Checkpoint/resume (--resume flag): when True, run_pipeline skips passes
+    # whose checkpoints were rehydrated by checkpoint.load_into().
+    resume: bool = False
+
+    # Streaming (--stream flag): write security-report.partial.sarif after
+    # each LLM pass so a killed run still has a readable partial report.
+    stream_enabled: bool = False
 
     @property
     def output_dir(self) -> Path:

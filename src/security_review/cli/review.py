@@ -35,11 +35,11 @@ def resolve_exit_code(report_data, fail_on: str | None, fail_on_degraded: bool) 
 
 
 @cli.command()
-@click.option("--target", required=True, type=click.Path(exists=True),
-              help="Path to codebase root.")
-@click.option("--mode", default="full",
+@click.option("--target", default=None, type=click.Path(exists=True),
+              help="Path to codebase root. Required unless --resume is given.")
+@click.option("--mode", default=None,
               type=click.Choice(["full", "sast", "sast-triage"]),
-              help="Pipeline mode.")
+              help="Pipeline mode (default: full).")
 @click.option("--provider", default=None,
               help="LLM provider:model (e.g. copilot:claude-opus-4.6).")
 @click.option("--budget", type=float, default=None,
@@ -48,11 +48,18 @@ def resolve_exit_code(report_data, fail_on: str | None, fail_on_degraded: bool) 
               help="Output SARIF path (default: var/output/{date}-{target}-{id}/).")
 @click.option("--summary", default=None,
               help="Output markdown summary path.")
-@click.option("--format", "report_format", default="summary",
+@click.option("--format", "report_format", default=None,
               help="Report format: summary, full, json, csv, all (comma-separated).")
 @click.option("--config", "config_path", default=None,
               type=click.Path(exists=True),
               help="Override config YAML path.")
+@click.option("--resume", "resume", default=None,
+              type=click.Path(exists=True, file_okay=False),
+              help="Resume a previous run from its output directory "
+                   "(var/output/{date}-{target}-{id}/). Reuses that run's "
+                   "config verbatim — conflicts with --target/--mode/--provider/etc.")
+@click.option("--stream", "stream", is_flag=True,
+              help="Write security-report.partial.sarif after each LLM pass.")
 @click.option("--verbose", "-v", is_flag=True,
               help="Show batch/tool detail and structlog output.")
 @click.option("--debug", is_flag=True,
@@ -79,14 +86,34 @@ def resolve_exit_code(report_data, fail_on: str | None, fail_on_degraded: bool) 
 @click.option("--include", "include", multiple=True,
               help="Restrict review to matching globs, repeatable.")
 def review(target, mode, provider, budget, output, summary, report_format, config_path,
-           verbose, debug, quiet, json_logs, no_file_log, triage_all, trace, no_preflight,
-           fail_on, fail_on_degraded, exclude, include):
+           resume, stream, verbose, debug, quiet, json_logs, no_file_log, triage_all,
+           trace, no_preflight, fail_on, fail_on_degraded, exclude, include):
     """Run the security review pipeline.
 
     Exit codes: 0 pass; 1 crash (partial artifacts salvaged when possible);
     2 CLI usage error (click); 3 findings at/above --fail-on; 4 completed
     with coverage gaps and --fail-on-degraded; 130 interrupted (Ctrl-C).
     """
+    # --resume reuses the original run's configuration verbatim — combining
+    # it with flags that would change that configuration is an error, not a
+    # silent mix (fail-loud). Usage errors exit 2 via click.
+    if resume:
+        conflicting = {
+            "--target": target, "--mode": mode, "--provider": provider,
+            "--budget": budget, "--output": output, "--summary": summary,
+            "--format": report_format, "--config": config_path,
+            "--triage-all": triage_all or None,
+            "--exclude": (exclude or None), "--include": (include or None),
+        }
+        given = [name for name, value in conflicting.items() if value is not None]
+        if given:
+            raise click.UsageError(
+                f"--resume reuses the original run's configuration; "
+                f"remove conflicting option(s): {', '.join(given)}"
+            )
+    elif target is None:
+        raise click.UsageError("Missing option '--target' (or use --resume <run-dir>).")
+
     ctx = _setup_logging(verbose, debug, quiet, json_logs, no_file_log)
     show_detail = ctx["verbose"] or ctx["debug"]
 
@@ -95,77 +122,110 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
 
     from security_review.config import load_config
     from security_review.config_schema import SecurityReviewConfig
+    from security_review.errors import SecurityReviewError
 
-    cfg = load_config(Path(config_path) if config_path else None)
-
-    # Auto-generate dated output directory with run ID for uniqueness
-    run_id = uuid4().hex[:8]
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    target_name = Path(target).resolve().name
-    safe_name = "".join(c if c.isalnum() or c in "-." else "-" for c in target_name).strip("-")
-    auto_dir = f"var/output/{date_str}-{safe_name}-{run_id}"
-
-    if output is None:
-        output = f"{auto_dir}/security-report.sarif"
-    if summary is None:
-        summary = f"{auto_dir}/security-report.md"
-    triage = str(Path(output).parent / "triage.json")
-
-    # Apply CLI overrides via model_validate (enforces constraints)
-    overrides: dict = {}
-    overrides.setdefault("review", {})["mode"] = mode
-    if provider:
-        overrides.setdefault("llm", {})["provider_model"] = provider
-        overrides.setdefault("llm", {})["triage_model"] = provider
-    if budget is not None:
-        overrides.setdefault("llm", {})["max_budget_usd"] = budget
-    overrides.setdefault("review", {})["output_sarif"] = output
-    overrides.setdefault("review", {})["output_summary"] = summary
-    overrides.setdefault("review", {})["output_triage"] = triage
-    if triage_all:
-        overrides.setdefault("triage", {})["min_score"] = 0.0
-    if exclude:
-        overrides.setdefault("review", {})["exclude"] = list(exclude)
-    if include:
-        overrides.setdefault("review", {})["include"] = list(include)
-
-    merged = cfg.model_dump()
-    for section, values in overrides.items():
-        merged.setdefault(section, {}).update(values)
-
-    try:
-        cfg = SecurityReviewConfig.model_validate(merged)
-    except Exception as e:
-        click.echo(f"Invalid option: {e}", err=True)
-        raise SystemExit(1)
-
-    target_path = Path(target).resolve()
     work_dir = PROJECT_ROOT
-    Path(output).parent.mkdir(parents=True, exist_ok=True)
-
-    # Parse report formats
-    if report_format == "all":
-        formats = ["summary", "full", "json", "csv"]
-    else:
-        formats = [f.strip() for f in report_format.split(",")]
-
-    effective_provider = provider or cfg.llm.provider_model
-
-    # Run manifest — written before Pass 1 starts, so it exists even if the
-    # pipeline never gets far enough to salvage a report (WP3).
-    out_dir = Path(output).parent
     from security_review import __version__
     from security_review.run_ledger import RunLedger
-    run_manifest = {
-        "run_id": run_id,
-        "target": str(target_path),
-        "mode": mode,
-        "provider": effective_provider,
-        "formats": formats,
-        "scar_version": __version__,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-    }
-    (out_dir / "run.json").write_text(json.dumps(run_manifest, indent=2), encoding="utf-8")
+
+    if resume:
+        # Rebuild everything from the original run's artifacts: run.json for
+        # run_id/target/formats, state/config.json for the full config —
+        # never parsed from the directory name (fragile with hyphens).
+        run_dir = Path(resume).resolve()
+        from security_review.passes.checkpoint import load_resume_context
+        try:
+            run_manifest, cfg = load_resume_context(run_dir)
+        except SecurityReviewError as e:
+            click.echo(f"Cannot resume {run_dir}: {e}", err=True)
+            raise SystemExit(1)
+        recorded_out_dir = (work_dir / cfg.review.output_sarif).parent.resolve()
+        if recorded_out_dir != run_dir:
+            click.echo(
+                f"Cannot resume {run_dir}: its config records outputs under "
+                f"{recorded_out_dir} — was the run directory moved?", err=True)
+            raise SystemExit(1)
+        run_id = run_manifest["run_id"]
+        target_path = Path(run_manifest["target"])
+        if not target_path.exists():
+            click.echo(f"Cannot resume: original target no longer exists: {target_path}", err=True)
+            raise SystemExit(1)
+        mode = cfg.review.mode
+        output = cfg.review.output_sarif
+        formats = run_manifest.get("formats") or ["summary"]
+        out_dir = run_dir
+        effective_provider = cfg.llm.provider_model
+    else:
+        mode = mode or "full"
+        report_format = report_format or "summary"
+
+        cfg = load_config(Path(config_path) if config_path else None)
+
+        # Auto-generate dated output directory with run ID for uniqueness
+        run_id = uuid4().hex[:8]
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        target_name = Path(target).resolve().name
+        safe_name = "".join(c if c.isalnum() or c in "-." else "-" for c in target_name).strip("-")
+        auto_dir = f"var/output/{date_str}-{safe_name}-{run_id}"
+
+        if output is None:
+            output = f"{auto_dir}/security-report.sarif"
+        if summary is None:
+            summary = f"{auto_dir}/security-report.md"
+        triage = str(Path(output).parent / "triage.json")
+
+        # Apply CLI overrides via model_validate (enforces constraints)
+        overrides: dict = {}
+        overrides.setdefault("review", {})["mode"] = mode
+        if provider:
+            overrides.setdefault("llm", {})["provider_model"] = provider
+            overrides.setdefault("llm", {})["triage_model"] = provider
+        if budget is not None:
+            overrides.setdefault("llm", {})["max_budget_usd"] = budget
+        overrides.setdefault("review", {})["output_sarif"] = output
+        overrides.setdefault("review", {})["output_summary"] = summary
+        overrides.setdefault("review", {})["output_triage"] = triage
+        if triage_all:
+            overrides.setdefault("triage", {})["min_score"] = 0.0
+        if exclude:
+            overrides.setdefault("review", {})["exclude"] = list(exclude)
+        if include:
+            overrides.setdefault("review", {})["include"] = list(include)
+
+        merged = cfg.model_dump()
+        for section, values in overrides.items():
+            merged.setdefault(section, {}).update(values)
+
+        try:
+            cfg = SecurityReviewConfig.model_validate(merged)
+        except Exception as e:
+            click.echo(f"Invalid option: {e}", err=True)
+            raise SystemExit(1)
+
+        target_path = Path(target).resolve()
+
+        # Parse report formats
+        if report_format == "all":
+            formats = ["summary", "full", "json", "csv"]
+        else:
+            formats = [f.strip() for f in report_format.split(",")]
+
+        effective_provider = provider or cfg.llm.provider_model
+
+        # Run manifest — written before Pass 1 starts, so it exists even if the
+        # pipeline never gets far enough to salvage a report (WP3).
+        out_dir = Path(output).parent
+        out_dir.mkdir(parents=True, exist_ok=True)
+        run_manifest = {
+            "run_id": run_id,
+            "target": str(target_path),
+            "mode": mode,
+            "provider": effective_provider,
+            "formats": formats,
+            "scar_version": __version__,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }
+        (out_dir / "run.json").write_text(json.dumps(run_manifest, indent=2), encoding="utf-8")
 
     from security_review.passes.pipeline import PipelineState, run_pipeline
 
@@ -207,20 +267,35 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
         on_progress=on_progress,
         report_formats=formats,
         trace_enabled=trace,
+        resume=bool(resume),
+        stream_enabled=stream,
         ledger=RunLedger(out_dir / "events.jsonl"),
     )
 
     if not quiet:
-        click.echo(f"\nSCAR — {mode} mode")
+        click.echo(f"\nSCAR — {mode} mode{' (resuming)' if resume else ''}")
         click.echo(f"  Target:   {target_path}")
         click.echo(f"  Provider: {effective_provider}")
         click.echo()
 
     logger.info("pipeline.starting",
                 target=str(target_path), mode=mode,
-                provider=effective_provider)
+                provider=effective_provider, resume=bool(resume))
 
     try:
+        if resume:
+            # Rehydrate completed passes + spend BEFORE preflight, so a
+            # corrupt checkpoint fails fast without burning an LLM probe.
+            # Fail-fast: corrupt/invalid state/*.json raises ConfigurationError.
+            from security_review.passes.checkpoint import load_into
+            restored = load_into(state, out_dir)
+            if not quiet and restored:
+                click.echo(f"  Resuming run {run_id}: restored "
+                           f"{', '.join(sorted(restored))} "
+                           f"(spend so far: ${state.cost_tracker.total_spent:.2f})")
+
+        # Preflight also runs on --resume (018 WP4 / plan 020 A.9): cheap, and
+        # re-validates auth before resuming spend.
         if mode != "sast" and not no_preflight:
             from security_review.preflight import probe_provider, validate_pricing
             validate_pricing(cfg)

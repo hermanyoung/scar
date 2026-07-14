@@ -109,6 +109,19 @@ class CostTracker:
     def to_audit_log(self) -> list[dict]:
         return [c.model_dump() for c in self._calls]
 
+    def restore(self, entries: list[dict]) -> None:
+        """Repopulate from a prior run's audit log (--resume).
+
+        Replaces any recorded calls so total_spent — and therefore
+        would_exceed_budget() — reflects the original run's spend.
+        """
+        self._calls = [CostEntry.model_validate(e) for e in entries]
+        logger.info(
+            "budget.restored",
+            entries=len(self._calls),
+            cumulative_usd=round(self.total_spent, 4),
+        )
+
 
 def pricing_entry_exists(model_string: str) -> bool:
     """True if the resolved form of provider:model has a pricing entry."""
