@@ -38,8 +38,8 @@ def write_artifacts(state: PipelineState) -> Path:
     itself makes no LLM/network calls, so there is nothing to await.
     """
 
-    _MERGE_PASS_NUMBER = {"full": 6, "sast-triage": 4, "sast": 3}
-    merge_pass_number = _MERGE_PASS_NUMBER.get(state.config.review.mode, 6)
+    _MERGE_PASS_NUMBER = {"full": 7, "sast-triage": 4, "sast": 3}
+    merge_pass_number = _MERGE_PASS_NUMBER.get(state.config.review.mode, 7)
     logger.info("pipeline.pass_started", pass_number=merge_pass_number, pass_name="merge")
 
     output_dir = state.work_dir
@@ -274,6 +274,13 @@ def _finding_to_sarif_result(finding) -> dict:
             "tags": [f"external/cwe/cwe-{int(cwe_num):03d}", "security"],
         }
 
+    # Propagate the Pass 6 verification verdict so _score_all_findings uses
+    # it instead of the CONFIRMED default. Refuted findings stay in the
+    # SARIF (scored low) — never dropped (plan 020 §1.7).
+    verdict = getattr(finding, "triage_verdict", None)
+    if verdict:
+        result.setdefault("properties", {})["triage_verdict"] = verdict
+
     # Add end line for holistic findings
     if hasattr(finding, "end_line") and finding.end_line:
         result["locations"][0]["physicalLocation"]["region"]["endLine"] = finding.end_line
@@ -334,9 +341,13 @@ def _score_all_findings(sarif: dict, state, exposure_index: dict[str, float]) ->
             detection = "llm_only" if is_llm_finding else "sast_only"
             verdict = result.get("properties", {}).get("triage_verdict")
 
-            # LLM-discovered findings (holistic pass) are pre-assessed with evidence
+            # A verdict-less LLM finding defaults to CONFIRMED only when
+            # verification did NOT run. When Pass 6 is enabled, a finding it
+            # couldn't adjudicate must never silently promote to CONFIRMED
+            # (plan 020 §1.5.2/§1.7) — belt-and-braces net for §1.5.2's
+            # explicit NEEDS_CONTEXT stamps.
             if is_llm_finding and not verdict:
-                verdict = "CONFIRMED"
+                verdict = "CONFIRMED" if not state.config.verification.enabled else "NEEDS_CONTEXT"
                 result.setdefault("properties", {})["triage_verdict"] = verdict
 
             score = score_finding(

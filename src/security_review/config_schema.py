@@ -93,6 +93,23 @@ class TriageConfig(BaseModel, extra="forbid"):
     )
 
 
+class VerificationConfig(BaseModel, extra="forbid"):
+    """Pass 6: independent adversarial verification of LLM-discovered findings."""
+
+    enabled: bool
+    model: str | None = Field(
+        default=None,
+        pattern=r"^(openai|anthropic|copilot|codex|claude):.+$",
+        description="Override model for verification. null = use llm.provider_model.",
+    )
+    samples: int = Field(
+        ge=1, le=5,
+        description="Skeptic votes per finding. 1 = single; 3 = majority-refute.",
+    )
+    verify_holistic: bool
+    verify_config_review: bool
+
+
 class ReviewConfig(BaseModel, extra="forbid"):
     mode: str = Field(default="full", pattern=r"^(full|sast|sast-triage)$")
     target_path: str = Field(default=".")
@@ -110,3 +127,4 @@ class SecurityReviewConfig(BaseModel, extra="forbid"):
     sast: SASTConfig
     triage: TriageConfig
     review: ReviewConfig
+    verification: VerificationConfig

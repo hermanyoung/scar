@@ -102,6 +102,10 @@ class BaseFinding(BaseModel):
     line_number: int | None = Field(default=None, ge=1)
     cwe_id: str | None = Field(default=None)
     remediation: str = Field(min_length=1)
+    triage_verdict: str | None = Field(
+        default=None,
+        description="Set by Pass 6 verification. None = unverified.",
+    )
 
     @field_validator("severity", mode="before")
     @classmethod

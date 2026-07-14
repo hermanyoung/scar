@@ -63,13 +63,14 @@ def health_check(verbose, debug):
         logger.warning("health.check_failed", check="config/taxonomy/cwe.yaml", error=str(e))
 
     from security_review import MODULE_ROOT
-    for prompt_file in ("triage.md", "config_review.md"):
+    for prompt_file in ("triage.md", "config_review.md", "verify.md"):
         p = MODULE_ROOT / "config" / "prompts" / prompt_file
         checks.append((f"config/prompts/{prompt_file}", p.exists(), "" if p.exists() else "missing"))
 
     if cfg is not None:
         from security_review.budget import pricing_entry_exists
-        for m in filter(None, {cfg.llm.provider_model, cfg.llm.triage_model}):
+        for m in filter(None, {cfg.llm.provider_model, cfg.llm.triage_model,
+                               cfg.verification.model}):
             try:
                 ok = pricing_entry_exists(m)
                 detail = "" if ok else "no entry in config/pricing.yaml"

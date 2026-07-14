@@ -32,6 +32,13 @@
 #   min_score:                float  # 0.0-1.0, priority threshold for triage
 #   default_confidence:       float  # 0.0-1.0, used when LLM omits confidence
 #
+# verification:
+#   enabled:              bool    # run Pass 6 adversarial verification of LLM findings
+#   model:                str?    # override model. null = use llm.provider_model
+#   samples:              int     # 1-5 skeptic votes per finding
+#   verify_holistic:      bool    # verify Pass 4 (holistic) findings
+#   verify_config_review: bool    # verify Pass 5 (config review) findings
+#
 # review:
 #   mode:            str   # "full" | "sast" | "sast-triage"
 #   target_path:     str   # codebase root (overridden by CLI --target)
@@ -110,6 +117,16 @@ triage:
   fp_confidence_threshold: 0.75
   min_score: 0.20                        # MODERATE+ threshold. 0.0 = triage everything.
   default_confidence: 0.5                # Assigned when LLM omits confidence. Low = conservative.
+
+# Pass 6: independent adversarial verification of LLM-discovered findings.
+# A separate skeptic agent re-reads the source and assigns its own verdict —
+# it never sees the finder's reasoning (anti-anchoring, plan 020).
+verification:
+  enabled: true
+  model: null            # null = use llm.provider_model. A cheaper model here is fine.
+  samples: 1             # 1 = single skeptic. 3 = majority-refute (higher cost, higher precision).
+  verify_holistic: true
+  verify_config_review: false
 
 review:
   mode: "full"

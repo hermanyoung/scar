@@ -22,6 +22,8 @@ def validate_pricing(config: SecurityReviewConfig) -> None:
     models = {config.llm.provider_model}
     if config.llm.triage_model:
         models.add(config.llm.triage_model)
+    if config.verification.model:
+        models.add(config.verification.model)
     missing = sorted(m for m in models if not pricing_entry_exists(m))
     if missing:
         raise ConfigurationError(

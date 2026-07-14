@@ -96,6 +96,7 @@ async def run_pipeline(state: PipelineState) -> "Path":
     from security_review.passes.merge import run_merge
     from security_review.passes.sast import run_sast
     from security_review.passes.triage import run_triage
+    from security_review.passes.verify import run_verification
 
     structlog.contextvars.bind_contextvars(
         run_id=state.run_id,
@@ -115,7 +116,7 @@ async def run_pipeline(state: PipelineState) -> "Path":
 
     # Determine total passes for this mode
     if mode == "full":
-        total_passes = 6
+        total_passes = 7
     elif mode == "sast-triage":
         total_passes = 4
     else:
@@ -171,6 +172,12 @@ async def run_pipeline(state: PipelineState) -> "Path":
         c_count = len(state.config_review_result.findings) if state.config_review_result else 0
         progress(5, "config_review", "done", f"{c_count} config findings")
 
+        # Pass 6: Verify — independent adversarial verdicts on LLM findings
+        progress(6, "verify", "running", "LLM verifying discovered findings...")
+        if not await _run_pass(state, progress, 6, "verify", run_verification):
+            return await _merge_and_finish(state, progress, total_passes, start)
+        progress(6, "verify", "done", _verify_done_detail(state))
+
     elif mode == "sast-triage":
         # Pass 3: Triage
         progress(3, "triage", "running", "LLM triaging SAST findings...")
@@ -186,6 +193,25 @@ async def run_pipeline(state: PipelineState) -> "Path":
             progress(3, "triage", "done", "skipped")
 
     return await _merge_and_finish(state, progress, total_passes, start)
+
+
+def _verify_done_detail(state: PipelineState) -> str:
+    """Build the Pass 6 'done' progress detail from the verdicts set on findings."""
+    if not state.config.verification.enabled:
+        return "skipped (verification disabled)"
+    llm_findings = []
+    if state.holistic_result:
+        llm_findings += state.holistic_result.findings
+    if state.config_review_result:
+        llm_findings += state.config_review_result.findings
+    verdicts = [f.triage_verdict for f in llm_findings if f.triage_verdict]
+    if not verdicts:
+        return "no LLM findings to verify"
+    return (
+        f"{verdicts.count('CONFIRMED')} confirmed, "
+        f"{verdicts.count('FALSE_POSITIVE')} FP, "
+        f"{verdicts.count('NEEDS_CONTEXT')} needs context"
+    )
 
 
 async def _merge_and_finish(

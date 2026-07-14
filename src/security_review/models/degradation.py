@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 PassName = Literal[
-    "inventory", "sast", "triage", "holistic", "config_review", "merge", "pipeline",
+    "inventory", "sast", "triage", "holistic", "config_review", "verify", "merge", "pipeline",
 ]
 
 DegradationKind = Literal[
