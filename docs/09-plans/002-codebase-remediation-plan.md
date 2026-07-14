@@ -2,8 +2,9 @@
 
 **Date:** 2 May 2026
 **Author:** Herman Young
-**Status:** Approved for implementation
+**Status:** Partially implemented — residuals closed by plans 018/019
 **Scope:** Remediate rule violations, spec divergences, test gaps, and structural issues identified in the codebase review of 2 May 2026.
+**Disposition (2026-07-06):** Items 1.1/1.5/3.3/3.5/3.6 done; 1.3→018 WP1, 1.4→018 WP4; 1.6/1.7/1.8/2.1/2.2/3.4→019; 3.1/3.2 obsolete.
 
 ---
 

@@ -2,7 +2,8 @@
 
 **Source:** Comparative analysis of pi-mono (`@mariozechner/pi-ai`) patterns vs SCAR architecture  
 **Created:** 8 May 2026  
-**Status:** Planned
+**Status:** Partially implemented
+**Disposition (2026-07-06):** P1 done; P2 rejected (conflicts with pricing.yaml rule + 018 WP4); P3→019 WP-F; P4/P6 not planned.
 
 ---
 

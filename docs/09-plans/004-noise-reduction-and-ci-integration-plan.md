@@ -2,8 +2,9 @@
 
 **Source:** Analysis of [anthropics/claude-code-security-review](https://github.com/anthropics/claude-code-security-review) (Anthropic's official Claude Code security review action)
 **Created:** 2 May 2026
-**Status:** Planned
+**Status:** Planned — re-scoped
 **Principles:** P1 (Deterministic Before Non-Deterministic), P5 (Config Not Code), P10 (Modular Reusable), P12 (Accuracy Over Volume)
+**Disposition (2026-07-06):** CI layer delivered by plan 018 (WP5 --fail-on, WP11 ci.yml). Remaining scope: pre-filter, precedents, confidence gate, --diff.
 
 ---
 

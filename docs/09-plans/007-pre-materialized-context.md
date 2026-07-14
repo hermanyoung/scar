@@ -1,9 +1,10 @@
 # Plan 007: Pre-materialized Context for Holistic Pass
 
 **Date:** 4 May 2026
-**Status:** Ready for implementation
+**Status:** Implemented
 **Branch:** feat/pre-materialized-context (create from feat/coverage-and-detection-improvements)
 **Scope:** Replace tool-call-based file reading in the holistic pass (Pass 4) with pre-materialized context. Read all files locally and inline them in the prompt. Eliminates tool timeouts, the root cause of unreliable IDOR detection.
+**Disposition (2026-07-06):** Extended to all LLM passes; dual-mode fallback deliberately dropped (ADR-003, AGENTS.md rule 10).
 
 ---
 

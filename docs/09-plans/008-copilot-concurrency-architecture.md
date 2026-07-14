@@ -1,5 +1,8 @@
 # Plan 008: Copilot SDK Concurrency Architecture
 
+**Status:** Implemented
+**Disposition (2026-07-06):** Config surface evolved to per-provider blocks; hardcoded __init__ defaults removed by plan 019 WP-D.
+
 ## Problem Statement
 
 When running triage (Pass 3) or holistic checks (Pass 4) with concurrency >= 2, the Copilot SDK intermittently hangs — `send_and_wait` never receives a `SESSION_IDLE` event and the request stalls for 60-300s before timing out.

@@ -1,8 +1,9 @@
 # Plan 005: Code Quality Module
 
 **Date:** 3 May 2026
-**Status:** Draft
+**Status:** Implemented
 **Scope:** Build `src/code_analysis/` (shared structural analysis) and `src/code_quality/` (scoring engine). Expose as a `quality` command in `security-review.py`. Leave existing scripts untouched.
+**Disposition (2026-07-06):** Test gaps (C# parser fixtures/tests) closed by plan 019 WP-G.
 
 ---
 
