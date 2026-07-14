@@ -117,14 +117,23 @@ python scar.py review --target . --json-logs
 
 # Custom config file
 python scar.py review --target . --config my-config.yaml
+
+# Resume a killed/aborted run from its output directory (keeps completed
+# passes and spend; reuses the original run's configuration verbatim)
+python scar.py review --resume var/output/2026-07-14-my-app-1a2b3c4d/
+
+# Stream a partial SARIF after each LLM pass (security-report.partial.sarif)
+python scar.py review --target . --stream
 ```
 
 ### All review options
 
 | Option | Description |
 |--------|-------------|
-| `--target PATH` | Path to codebase root (required) |
+| `--target PATH` | Path to codebase root (required unless `--resume` is given) |
 | `--mode MODE` | `full` / `sast` / `sast-triage` (default: `full`) |
+| `--resume PATH` | Resume a previous run from its `var/output/{date}-{target}-{id}/` directory — completed passes are restored from checkpoints, spend is preserved. Conflicts with `--target`/`--mode`/`--provider`/other config flags |
+| `--stream` | Write `security-report.partial.sarif` after each LLM pass (readable partial report if the run dies) |
 | `--provider STR` | LLM provider:model (e.g. `copilot:claude-opus-4.6`) |
 | `--budget FLOAT` | Max LLM spend in USD (0 = unlimited) |
 | `--output PATH` | Output SARIF path (default: auto-generated under `var/output/`) |
@@ -165,7 +174,7 @@ A pass failure or crash does not discard prior passes' results — inventory and
 |------|-----------|-------------|----------|
 | `sast` | 1 (Inventory) + 2 (SAST) + Merge | No | Fast deterministic scan; combine with `--fail-on` for CI gating |
 | `sast-triage` | 1 + 2 + 3 (Triage) + Merge | Yes | SAST with false-positive filtering |
-| `full` | 1 + 2 + 3 + 4 (Holistic) + 5 (Config) + Merge | Yes | Complete security review |
+| `full` | 1 + 2 + 3 + 4 (Holistic) + 5 (Config) + 6 (Verify) + Merge (7) | Yes | Complete security review |
 
 ---
 
@@ -177,8 +186,17 @@ Pass 2: SAST             OpenGrep, Bandit, Betterleaks, Hadolint, Trivy, Roslyn
 Pass 3: TRIAGE (LLM)     Confirm/refute each SAST finding with full-file context
 Pass 4: HOLISTIC (LLM)   Cross-file analysis — authZ, crypto, deserialization, IDOR
 Pass 5: CONFIG (LLM)     Review appsettings, Dockerfile, CI YAML, pyproject.toml
-MERGE                     Combine all findings -> SARIF + reports + triage.json
+Pass 6: VERIFY (LLM)     Independent adversarial verdict on every LLM-discovered
+                         finding — a separate skeptic agent re-reads the source
+                         (never the finder's reasoning) and defaults to disbelief
+Pass 7: MERGE            Combine all findings -> SARIF + reports + triage.json
 ```
+
+Pass 6 writes its verdict into the same `properties.triage_verdict` field Pass 3
+uses, so the "Triage" counts in the summary and terminal output include Pass-6
+verdicts. Refuted findings are kept in the SARIF (scored low), never dropped.
+Each completed pass is checkpointed to `var/output/{run}/state/`, so a killed
+run can be continued with `--resume` without losing work or spend.
 
 **Priority scoring:** Every finding is scored as `priority = severity x confidence x exposure` (0.0-1.0), then classified into bands:
 
@@ -203,6 +221,8 @@ Output is written to `var/output/{date}-{target}-{run-id}/`:
 | `security-report.json` | JSON | Machine-readable findings export |
 | `security-report.csv` | CSV | Spreadsheet-friendly export |
 | `triage.json` | JSON | Full audit trail — LLM decisions, cost log, evidence manifest |
+| `security-report.partial.sarif` | SARIF 2.1.0 | Partial merged report written after each LLM pass (`--stream` only) |
+| `state/` | JSON | Per-pass checkpoints + config/cost snapshots — what `--resume` restores |
 
 Use `--format all` to generate every format, or `--format summary,json` for specific ones.
 
@@ -525,8 +545,8 @@ scar/
   src/
     security_review/          # Core pipeline module
       cli/                    #   Click CLI: app.py (group) + one module per command
-      passes/                 #   5-pass pipeline stages + orchestrator
-      agents/                 #   PydanticAI agent definitions (triage, holistic, config_review)
+      passes/                 #   Pipeline pass stages + orchestrator + checkpoint/resume
+      agents/                 #   PydanticAI agent definitions (triage, holistic, config_review, verify)
       models/                 #   Pydantic output models (findings, inventory, config_review, report)
       sarif/                  #   SARIF 2.1.0 loading, merging, taxonomy, tag normalisation
       tools/                  #   Subprocess runner (sole subprocess caller) + tool registry
@@ -538,7 +558,7 @@ scar/
     models.yaml               # Model aliases & provider overrides
     pricing.yaml              # LLM token pricing
     providers.yaml            # Auth config per provider
-    prompts/                  # LLM agent system prompts (triage.md, config_review.md)
+    prompts/                  # LLM agent system prompts (triage.md, config_review.md, verify.md)
     taxonomy/                 # CWE registry (cwe.yaml) — single source of truth for all checks
     rules/                    # SAST tool rules
       opengrep/                #   40+ OpenGrep YAML rules with test files

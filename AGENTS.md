@@ -15,7 +15,8 @@ The pipeline is: **detect -> scan -> triage -> review -> report**.
 - **Pass 3 (Triage):** LLM confirms/refutes each SAST finding with full-file context.
 - **Pass 4 (Holistic):** LLM cross-file analysis — authZ, crypto, deserialization, IDOR, business logic.
 - **Pass 5 (Config):** LLM reviews configuration files for security misconfigurations.
-- **Merge:** Combine all findings into SARIF + markdown summary + triage.json audit log.
+- **Pass 6 (Verify):** Independent adversarial verification — a separate skeptic agent re-reads the source for each LLM-discovered finding (never the finder's reasoning) and assigns its own verdict.
+- **Merge (Pass 7 in full mode):** Combine all findings into SARIF + markdown summary + triage.json audit log.
 
 ## Critical Rules
 

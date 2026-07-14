@@ -81,9 +81,11 @@ llm:
 
   # Per-provider capacity settings.
   # Each provider has different rate limits and transport characteristics.
-  # session_timeout/backoff_seconds are currently honored by the copilot
-  # adapter only — claude/codex/anthropic/openai adapters do not read them
-  # (plan 018 explicitly deferred wiring them everywhere; see AGENTS.md).
+  # backoff_seconds seeds the uniform transport-retry policy (RetryingModel,
+  # plan 020 Phase 3) applied to ALL providers: exponential backoff on
+  # non-fatal transport errors and on empty responses, bounded attempts.
+  # session_timeout is honored by the copilot adapter, which also keeps its
+  # internal fresh-session timeout retry (bounded belt-and-suspenders).
   providers:
     copilot:
       max_concurrent: 2          # Copilot API rate-limits aggressively. 2 is safe.

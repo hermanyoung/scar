@@ -156,12 +156,19 @@ def build_model(model_string: str, *, llm_config: "LLMConfig"):
             code="SYS_CONFIGURATION_ERROR",
         )
 
+    from security_review.retry_model import RetryingModel
+
+    # RetryingModel is the OUTERMOST wrapper so each retry re-acquires the
+    # concurrency slot cleanly (plan 020 Phase 3). It activates
+    # backoff_seconds uniformly for all five providers.
     model = ConcurrencyLimitedModel(inner, limiter=limiter)
+    model = RetryingModel(model, backoff_seconds=provider_cfg.backoff_seconds, provider=provider)
     logger.debug(
         "provider.model_built",
         provider=provider,
         model=model_name,
         max_concurrent=provider_cfg.max_concurrent,
         session_timeout=provider_cfg.session_timeout,
+        backoff_seconds=provider_cfg.backoff_seconds,
     )
     return model
