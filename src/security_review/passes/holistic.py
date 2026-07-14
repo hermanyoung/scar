@@ -11,7 +11,6 @@ This pass loads those checks and executes them concurrently.
 from __future__ import annotations
 
 import asyncio
-import time
 from enum import Enum, auto
 
 from pathlib import Path
@@ -31,6 +30,7 @@ from security_review.models.degradation import Degradation, files_omitted_degrad
 from security_review.models.findings import HolisticFinding, HolisticReviewResult
 from security_review.model_settings import build_model_settings
 from security_review.output_parser import parse_holistic_response
+from security_review.passes._batch import run_in_batches
 from security_review.passes.state import PipelineState
 from security_review.providers import build_model
 from security_review.sarif.loader import get_findings_for_file
@@ -137,7 +137,6 @@ async def run_holistic(state: PipelineState) -> None:
     model = build_model(model_string, llm_config=state.config.llm)
     model_settings = build_model_settings(model_string, state.config.llm)
     native_json = supports_native_json(model)
-    concurrency = state.config.llm.concurrency
 
     all_findings: list[HolisticFinding] = []
     all_files_reviewed: set[str] = set()
@@ -148,90 +147,85 @@ async def run_holistic(state: PipelineState) -> None:
     # -- First pass: run checks in concurrent batches --------------------------
 
     failed_checks: list[tuple[CWECheck, list[str]]] = []
-    t_start = time.monotonic()
 
     state.on_progress(
         4, "holistic", "tool",
         f"running {total_checks} CWE checks across {len(set(fp for _, fps in runnable for fp in fps))} files",
     )
 
-    for batch_start in range(0, total_checks, concurrency):
-        if state.cost_tracker.would_exceed_budget(state.config.llm.max_budget_usd):
-            remaining = total_checks - batch_start
-            logger.warning(
-                "holistic.budget_exhausted",
-                spent_usd=state.cost_tracker.total_spent,
-                max_budget_usd=state.config.llm.max_budget_usd,
-                checks_completed=checks_completed,
-                checks_skipped=remaining,
-            )
-            state.degrade(Degradation(
-                pass_name="holistic", kind="budget_exhausted", subject="holistic",
-                detail=f"budget reached — {remaining} of {total_checks} CWE checks never ran: "
-                       f"{', '.join('CWE-' + c.cwe_id for c, _ in runnable[batch_start:])}",
-                count=remaining,
-            ))
-            state.on_progress(4, "holistic", "tool", f"budget exhausted — {remaining} CWE checks skipped")
-            break
+    def _describe(batch, batch_start: int) -> str:
+        return f"CWE-{', '.join(c.cwe_id for c, _ in batch)}"
 
-        batch_end = min(batch_start + concurrency, total_checks)
-        batch = runnable[batch_start:batch_end]
-
-        elapsed = time.monotonic() - t_start
-        done_count = checks_completed + checks_failed + len(failed_checks)
-        if done_count > 0:
-            avg = elapsed / done_count
-            remaining_time = (total_checks - done_count) * avg
-            eta = f"~{int(remaining_time)}s left"
-        else:
-            eta = "estimating..."
-        cwe_ids = ", ".join(c.cwe_id for c, _ in batch)
-        state.on_progress(
-            4, "holistic", "counter",
-            f"[{done_count}/{total_checks}] CWE-{cwe_ids} "
-            f"({int(elapsed)}s elapsed, {eta}, ${state.cost_tracker.total_spent:.2f})",
-        )
-
-        batch_results = await _run_batch(batch, state, model, model_string, model_settings, native_json)
-
-        for (check, file_paths), result in zip(batch, batch_results):
-            outcome, findings, files_reviewed = _classify_result(result, check)
-
-            if outcome == _Outcome.FATAL:
-                raise result  # type: ignore[misc]
-            elif outcome == _Outcome.RETRY:
-                failed_checks.append((check, file_paths))
-            elif outcome == _Outcome.OVERFLOW:
-                half = file_paths[: max(1, len(file_paths) // 2)]
-                dropped = file_paths[len(half):]
-                state.degrade(Degradation(
-                    pass_name="holistic", kind="files_omitted", subject=f"CWE-{check.cwe_id}",
-                    detail=f"prompt exceeded the model context window — retrying CWE-{check.cwe_id} "
-                           f"with the top {len(half)} of {len(file_paths)} files; "
-                           f"{len(dropped)} files NOT reviewed for this CWE",
-                    count=len(dropped),
-                ))
-                failed_checks.append((check, half))
-            else:
-                all_findings.extend(findings)
-                all_files_reviewed.update(files_reviewed)
-                checks_completed += 1
-
-        elapsed = time.monotonic() - t_start
-        done_count = checks_completed + checks_failed + len(failed_checks)
-        if done_count > 0 and done_count < total_checks:
-            avg = elapsed / done_count
-            remaining_time = (total_checks - done_count) * avg
-            eta = f" ~{int(remaining_time)}s left"
-        else:
-            eta = ""
-        state.on_progress(
-            4, "holistic", "counter",
-            f"[{done_count}/{total_checks}] "
+    def _summarize() -> str:
+        return (
             f"{len(all_findings)} findings"
             f"{f', {len(failed_checks)} pending retry' if failed_checks else ''}"
-            f" ({int(elapsed)}s{eta}, ${state.cost_tracker.total_spent:.2f})",
         )
+
+    def _on_budget_exhausted(batch_start: int, remaining: int) -> None:
+        logger.warning(
+            "holistic.budget_exhausted",
+            spent_usd=state.cost_tracker.total_spent,
+            max_budget_usd=state.config.llm.max_budget_usd,
+            checks_completed=checks_completed,
+            checks_skipped=remaining,
+        )
+        state.degrade(Degradation(
+            pass_name="holistic", kind="budget_exhausted", subject="holistic",
+            detail=f"budget reached — {remaining} of {total_checks} CWE checks never ran: "
+                   f"{', '.join('CWE-' + c.cwe_id for c, _ in runnable[batch_start:])}",
+            count=remaining,
+        ))
+        state.on_progress(4, "holistic", "tool", f"budget exhausted — {remaining} CWE checks skipped")
+
+    def _make_coro(item, index: int):
+        check, file_paths = item
+        return run_single_check(
+            check=check,
+            file_paths=file_paths,
+            state=state,
+            model=model,
+            model_string=model_string,
+            model_settings=model_settings,
+            native_json=native_json,
+        )
+
+    def _on_result(item, index: int, result) -> None:
+        nonlocal checks_completed
+        check, file_paths = item
+        outcome, findings, files_reviewed = _classify_result(result, check)
+
+        if outcome == _Outcome.FATAL:
+            return  # run_in_batches re-raises the fatal exception itself
+        elif outcome == _Outcome.RETRY:
+            failed_checks.append((check, file_paths))
+        elif outcome == _Outcome.OVERFLOW:
+            half = file_paths[: max(1, len(file_paths) // 2)]
+            dropped = file_paths[len(half):]
+            state.degrade(Degradation(
+                pass_name="holistic", kind="files_omitted", subject=f"CWE-{check.cwe_id}",
+                detail=f"prompt exceeded the model context window — retrying CWE-{check.cwe_id} "
+                       f"with the top {len(half)} of {len(file_paths)} files; "
+                       f"{len(dropped)} files NOT reviewed for this CWE",
+                count=len(dropped),
+            ))
+            failed_checks.append((check, half))
+        else:
+            all_findings.extend(findings)
+            all_files_reviewed.update(files_reviewed)
+            checks_completed += 1
+
+    await run_in_batches(
+        runnable,
+        state=state,
+        pass_number=4,
+        pass_name="holistic",
+        make_coro=_make_coro,
+        on_result=_on_result,
+        describe=_describe,
+        summarize=_summarize,
+        on_budget_exhausted=_on_budget_exhausted,
+    )
 
     # -- Retry pass: re-run failed checks one at a time ------------------------
 

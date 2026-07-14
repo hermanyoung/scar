@@ -1,16 +1,14 @@
 """Pass 3: LLM triage — one finding per agent call, concurrent batches.
 
 Each SAST finding is triaged individually for accuracy. Findings are
-dispatched in concurrent batches (configurable via llm.concurrency).
-Progress updates after each concurrent batch with running totals.
+dispatched in concurrent batches via the shared run_in_batches driver
+(passes/_batch.py). Progress updates after each concurrent batch with
+running totals.
 
 Verdicts are written back to state.sast_sarif by index — no reliance
 on shallow-copy mutation or LLM-echoed identifiers (P13).
 """
 from __future__ import annotations
-
-import asyncio
-import time
 
 import structlog
 from pydantic_ai import UsageLimits
@@ -20,13 +18,13 @@ from pydantic_ai.settings import ModelSettings
 from security_review.agents.deps import SecurityReviewDeps
 from security_review.agents.triage.agent import build_triage_agent
 from security_review.context_builder import format_context_window, read_file_content
-from security_review.errors import is_fatal_error
 from security_review.model_capabilities import supports_native_json, TRIAGE_FORMAT_MARKDOWN
 from security_review.models.degradation import Degradation
 from security_review.models.findings import TriagedFinding, TriageResult
 from security_review.model_settings import build_model_settings
 from security_review.output_parser import parse_triage_response
 from security_review.providers import build_model
+from security_review.passes._batch import run_in_batches
 from security_review.passes.state import PipelineState
 from security_review.sarif.loader import extract_findings, get_result_location
 from security_review.tracing import write_trace
@@ -84,115 +82,89 @@ async def run_triage(state: PipelineState) -> None:
     model_settings = build_model_settings(model_string, state.config.llm)
     native_json = supports_native_json(model)
     target_root = str(state.target_path.resolve())
-    concurrency = state.config.llm.concurrency
 
     all_triaged: list[TriagedFinding] = []
     completed = 0
     failed = 0
     total_findings = len(indexed_findings)
-    t_start = time.monotonic()
 
-    # Process in concurrent batches
-    for batch_start in range(0, total_findings, concurrency):
-        if state.cost_tracker.would_exceed_budget(state.config.llm.max_budget_usd):
-            logger.warning(
-                "triage.budget_exhausted",
-                spent_usd=state.cost_tracker.total_spent,
-                triaged=batch_start,
-                remaining=total_findings - batch_start,
-            )
-            remaining = total_findings - batch_start
-            state.degrade(Degradation(
-                pass_name="triage", kind="budget_exhausted", subject="triage",
-                detail=f"budget ${state.config.llm.max_budget_usd:.2f} reached after {batch_start} of "
-                       f"{total_findings} findings — {remaining} findings remain Untriaged",
-                count=remaining,
-            ))
-            state.on_progress(3, "triage", "tool",
-                              f"budget exhausted — {remaining} of {total_findings} findings not triaged")
-            break
+    def _describe(batch, batch_start: int) -> str:
+        return f"triaging finding {batch_start + 1}..."
 
-        batch_end = min(batch_start + concurrency, total_findings)
-        batch = indexed_findings[batch_start:batch_end]
-
-        # Report progress with timing
-        elapsed = time.monotonic() - t_start
-        done_count = completed + failed
-        if done_count > 0:
-            avg = elapsed / done_count
-            remaining = (total_findings - done_count) * avg
-            eta = f"~{int(remaining)}s left"
-        else:
-            eta = "estimating..."
-        state.on_progress(
-            3, "triage", "counter",
-            f"[{done_count}/{total_findings}] triaging finding {batch_start + 1}... "
-            f"({int(elapsed)}s elapsed, {eta}, ${state.cost_tracker.total_spent:.2f})",
-        )
-
-        # Launch all findings in this batch concurrently
-        tasks = [
-            _triage_single_finding(
-                finding=finding,
-                index=batch_start + j,
-                total=total_findings,
-                state=state,
-                model=model,
-                model_string=model_string,
-                model_settings=model_settings,
-                target_root=target_root,
-                native_json=native_json,
-            )
-            for j, (sarif_idx, finding) in enumerate(batch)
-        ]
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Process results: write verdicts to canonical SARIF by index
-        for j, result in enumerate(results):
-            sarif_idx, finding = batch[j]
-            if isinstance(result, Exception):
-                rule_id = finding.get("ruleId", "unknown")
-                failed += 1
-                logger.error(
-                    "agent.failed",
-                    agent_name="triage",
-                    finding_index=batch_start + j,
-                    rule_id=rule_id,
-                    error=str(result),
-                    error_type=type(result).__name__,
-                )
-                if is_fatal_error(result):
-                    raise result
-            elif result is not None:
-                completed += 1
-                all_triaged.append(result)
-                # Write verdict to the canonical SARIF results by index.
-                # No shallow-copy dependency — direct write to state.sast_sarif.
-                sarif_results[sarif_idx].setdefault("properties", {})["triage_verdict"] = result.verdict.value
-            else:
-                failed += 1
-
-        # Report batch completion with running totals and timing
+    def _summarize() -> str:
         confirmed = sum(1 for t in all_triaged if t.verdict.value == "CONFIRMED")
         fp = sum(1 for t in all_triaged if t.verdict.value == "FALSE_POSITIVE")
         needs_ctx = sum(1 for t in all_triaged if t.verdict.value == "NEEDS_CONTEXT")
-        elapsed = time.monotonic() - t_start
-        done_count = completed + failed
-        if done_count > 0 and done_count < total_findings:
-            avg = elapsed / done_count
-            remaining = (total_findings - done_count) * avg
-            eta = f" ~{int(remaining)}s left"
-        else:
-            eta = ""
-        state.on_progress(
-            3, "triage", "counter",
-            f"[{done_count}/{total_findings}] "
+        return (
             f"{confirmed} confirmed, {fp} FP, "
             f"{needs_ctx} needs context"
             f"{f', {failed} failed' if failed else ''}"
-            f" ({int(elapsed)}s{eta}, ${state.cost_tracker.total_spent:.2f})",
         )
+
+    def _on_budget_exhausted(batch_start: int, remaining: int) -> None:
+        logger.warning(
+            "triage.budget_exhausted",
+            spent_usd=state.cost_tracker.total_spent,
+            triaged=batch_start,
+            remaining=remaining,
+        )
+        state.degrade(Degradation(
+            pass_name="triage", kind="budget_exhausted", subject="triage",
+            detail=f"budget ${state.config.llm.max_budget_usd:.2f} reached after {batch_start} of "
+                   f"{total_findings} findings — {remaining} findings remain Untriaged",
+            count=remaining,
+        ))
+        state.on_progress(3, "triage", "tool",
+                          f"budget exhausted — {remaining} of {total_findings} findings not triaged")
+
+    def _make_coro(item, index: int):
+        _sarif_idx, finding = item
+        return _triage_single_finding(
+            finding=finding,
+            index=index,
+            total=total_findings,
+            state=state,
+            model=model,
+            model_string=model_string,
+            model_settings=model_settings,
+            target_root=target_root,
+            native_json=native_json,
+        )
+
+    def _on_result(item, index: int, result) -> None:
+        nonlocal completed, failed
+        sarif_idx, finding = item
+        if isinstance(result, Exception):
+            failed += 1
+            logger.error(
+                "agent.failed",
+                agent_name="triage",
+                finding_index=index,
+                rule_id=finding.get("ruleId", "unknown"),
+                error=str(result),
+                error_type=type(result).__name__,
+            )
+            # Fatal errors are re-raised by run_in_batches after this returns.
+        elif result is not None:
+            completed += 1
+            all_triaged.append(result)
+            # Write verdict to the canonical SARIF results by index.
+            # No shallow-copy dependency — direct write to state.sast_sarif.
+            sarif_results[sarif_idx].setdefault("properties", {})["triage_verdict"] = result.verdict.value
+        else:
+            failed += 1
+
+    await run_in_batches(
+        indexed_findings,
+        state=state,
+        pass_number=3,
+        pass_name="triage",
+        make_coro=_make_coro,
+        on_result=_on_result,
+        describe=_describe,
+        summarize=_summarize,
+        on_budget_exhausted=_on_budget_exhausted,
+    )
 
     if failed:
         state.degrade(Degradation(
