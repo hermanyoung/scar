@@ -688,4 +688,85 @@ Each phase is independently shippable and independently revertable.
       strips CWE; refuted findings keep theirs.
 - [ ] No new `subprocess` callers (rule 1).
 - [ ] New files stay well under 1000 lines; `verify.py` mirrors `triage.py` size.
+
+---
+
+# Addendum — Reconciliation with plans 018/019 (2026-07-14, binding)
+
+This plan was verified against the tree of 2026-07-05. Plans 018 (operational
+readiness) and 019 (invariant debt) have since landed on `main` (~2,300 changed
+lines across `merge.py`, `state.py`, `cli/review.py`, `budget.py`, `triage.py`,
+`holistic.py`, `config_review.py`). Every line-number anchor above has drifted —
+**re-locate by symbol, never by line.** The following adjustments are binding and
+override the main text where they conflict.
+
+## A. Machinery that now exists and MUST be integrated with (not duplicated)
+
+1. **Degradation ledger (018 WP1).** `models/degradation.py` + `state.degrade()`.
+   The `PassName` Literal must gain `"verify"`. The verify pass records degradations:
+   - budget exhaustion mid-pass → kind `budget_exhausted`, subject `"verify"`,
+     count = findings not verified;
+   - a finding left `NEEDS_CONTEXT` per §1.5.2 (`file_unreadable` /
+     `all_samples_failed`) → kind `check_failed`, subject = the finding's `rule_id`.
+   These render automatically in reports/SARIF via the 018 plumbing — do not build
+   a parallel channel.
+2. **Run ledger (018 WP3).** After each verified finding, append
+   `state.ledger.append("verify_verdict", rule_id=..., verdict=..., cumulative_usd=...)`
+   (guard `if state.ledger is not None`), matching the other passes' idiom.
+3. **`CostTracker.record` signature changed (018 WP4):** there is **no
+   `model_responded` parameter** — it is resolved internally from `model_requested`.
+   Use the current signature. Also extend `preflight.validate_pricing` to include
+   `verification.model` (when set) in the models it checks, and the health-check
+   pricing rows (`cli/tools.py`) likewise.
+4. **CWE stamp + merge drop-guard (019 WP-B):** holistic findings arrive with a
+   code-stamped `cwe_id` and merge drops CWE-less LLM findings. Verification must
+   never clear `cwe_id` (it only sets `triage_verdict`) — the §1.5 P13 override
+   applies to `TriagedFinding` identifiers only.
+5. **Salvage merge (018 WP3):** `run_merge` delegates to sync
+   `write_artifacts(state)`; the CLI `_salvage()` calls it on abort. Phase 1's merge
+   edits go in the current function bodies (`_finding_to_sarif_result`,
+   `_score_all_findings`), wherever they now live. Phase 2's checkpoints must
+   compose with salvage: a salvaged run directory must be `--resume`-able.
+6. **Overflow classification (019 WP-F):** Phase 3's `RetryingModel` must **not**
+   retry context-overflow errors — check `errors.is_context_overflow_error(exc)`
+   and re-raise immediately so the pass-level halve-and-retry handles it.
+   Retrying an oversized prompt N times is N× wasted spend.
+7. **`state.tool_results` no longer exists** (deleted in 018 WP1 as dead code).
+   Phase 2 §2.1 `load_into`: drop the `tool_results` rehydration line; the sast
+   slice is `sast_sarif` only.
+8. **Run manifest already exists (018 WP3):** `run.json` is written at run start
+   with `run_id/target/mode/provider/formats/scar_version/started_at`. Phase 2's
+   `init_run` must NOT create a duplicate `state/meta.json` carrying the same
+   facts — instead extend `run.json` with the output paths, and keep
+   `state/config.json` (full config snapshot) as specified. Resume reads
+   `run.json` + `state/config.json`.
+9. **`--fail-on` / exit codes (018 WP5) and preflight (018 WP4):** the `--resume`
+   path must run preflight (cheap; re-validates auth before resuming spend) and
+   must flow through `resolve_exit_code` like a fresh run.
+
+## B. Corrections to the main text
+
+1. **§1.6 contradicts §1.5.2** ("if all samples fail, leave `triage_verdict = None`"
+   vs "set `NEEDS_CONTEXT`, never `None`"). **§1.5.2 wins**: all-samples-failed →
+   `NEEDS_CONTEXT` + `verify.unresolved` log + degradation (A.1). §1.6's None
+   sentence is void.
+2. **§1.9 / §2.3 acceptance items that need real LLM calls** (`--mode full` runs,
+   the regression suite, kill-and-resume of a full run) are **human-run only**.
+   The implementing agent delivers the unit-level acceptance and flags the live
+   items for the human, exactly as plans 018/019 did.
+3. **Phase 4 is NOT to be implemented** in this pass (its own text marks it
+   optional/lowest-priority and it ties into plan 010). Stop after Phase 3.
+4. **§1.5.1 retrofit:** when extracting `run_in_batches` and retrofitting
+   `triage.py`/`holistic.py`, the 018/019 behaviors woven into those loops
+   (budget-exhaustion degradations + progress events, cost-in-counter lines,
+   ledger appends, holistic OVERFLOW handling) must survive the retrofit — the
+   existing unit tests (`test_degradations.py`, `test_overflow.py`,
+   `test_context_flow.py`) are the guard; they must pass unmodified. If the
+   retrofit cannot preserve them cleanly, ship `verify.py` on the helper and leave
+   the triage/holistic retrofit as a flagged follow-up rather than force it.
+5. **Reporting semantics note:** verify verdicts flow into the same
+   `properties.triage_verdict` field, so the existing "Triage" counts in
+   summary/terminal will include Pass-6 verdicts. Acceptable; record the semantic
+   change in `CHANGELOG.md` and the README pipeline table (Pass 6/7).
+
 - [ ] `check_rules.py --all` and `pytest tests/unit/` green before each phase merges.
