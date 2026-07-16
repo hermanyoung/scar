@@ -1,0 +1,20 @@
+rules:
+  - id: python.lang.security.cwe-757.jwt-no-algorithm
+    pattern: jwt.decode($TOKEN, $KEY)
+    message: >
+      jwt.decode() called without an algorithms= parameter accepts any
+      algorithm the token header names, including alg=none. Specify
+      algorithms=["HS256"] (or the intended algorithm) explicitly.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-757: Selection of Less-Secure Algorithm During Negotiation"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - python
+        - jwt

@@ -1,0 +1,23 @@
+rules:
+  - id: python.lang.security.cwe-321.hardcoded-jwt-key
+    patterns:
+      - pattern: jwt.encode($PAYLOAD, $KEY, ...)
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '"[^"]{8,}"'
+    message: >
+      Hardcoded JWT signing key. Load signing keys from environment variables
+      or a secrets manager. Never embed them as a string literal.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe:
+        - "CWE-321: Use of Hard-coded Cryptographic Key"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - python
+        - jwt

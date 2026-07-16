@@ -1,0 +1,59 @@
+rules:
+  - id: csharp.lang.security.cwe-345.validate-issuer-false
+    pattern: ValidateIssuer = false
+    message: >
+      JWT issuer validation disabled. Set ValidateIssuer=true and provide
+      ValidIssuer/ValidIssuers, or an attacker-controlled issuer will be
+      accepted.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-345: Insufficient Verification of Data Authenticity"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+        - jwt
+
+  - id: csharp.lang.security.cwe-345.validate-audience-false
+    pattern: ValidateAudience = false
+    message: >
+      JWT audience validation disabled. Set ValidateAudience=true and provide
+      ValidAudience/ValidAudiences, or a token issued for a different service
+      will be accepted.
+    severity: WARNING
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-345: Insufficient Verification of Data Authenticity"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+        - jwt
+
+  - id: csharp.lang.security.cwe-345.validate-lifetime-false
+    pattern: ValidateLifetime = false
+    message: >
+      JWT lifetime validation disabled. Tokens will never expire.
+      Set ValidateLifetime=true.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-345: Insufficient Verification of Data Authenticity"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      confidence: MEDIUM
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+        - jwt

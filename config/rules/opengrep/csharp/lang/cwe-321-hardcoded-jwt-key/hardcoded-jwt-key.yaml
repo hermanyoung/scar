@@ -1,0 +1,24 @@
+rules:
+  - id: csharp.lang.security.cwe-321.hardcoded-jwt-key
+    patterns:
+      - pattern: new SymmetricSecurityKey(Encoding.$METHOD.GetBytes($KEY))
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '"[^"]{8,}"'
+    message: >
+      Hardcoded JWT signing key. Symmetric signing keys must be loaded from
+      environment variables, a key vault, or a certificate store at runtime.
+      Never embed a signing key as a string literal in source code.
+    severity: ERROR
+    languages: [csharp]
+    metadata:
+      cwe:
+        - "CWE-321: Use of Hard-coded Cryptographic Key"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      confidence: HIGH
+      impact: HIGH
+      category: security
+      technology:
+        - .net
+        - jwt
