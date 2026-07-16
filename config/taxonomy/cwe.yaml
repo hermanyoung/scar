@@ -173,6 +173,22 @@
     6. WebSocket ws:// instead of wss:// for authenticated sessions.
     7. Configuration values specifying HTTP endpoints for APIs handling credentials or PII.
 
+"321":
+  name: "Use of Hard-coded Cryptographic Key"
+  detection: sast+llm
+  file_types: [auth, config, startup]
+  check: |
+    Check for hardcoded JWT signing keys in authentication code.
+    Look for:
+    1. String literals used as symmetric signing keys (HS256/HS384/HS512)
+       - new SymmetricSecurityKey(Encoding.UTF8.GetBytes("hardcoded-string"))
+       - jwt.encode(payload, "hardcoded-secret", algorithm="HS256")
+       - SigningCredentials with inline byte arrays or string constants
+    2. Private keys embedded in source code (PEM format, base64-encoded)
+    3. Signing keys loaded from appsettings.json without environment variable override
+    Flag any signing key that is not loaded from environment variables,
+    key vault, or a certificate store at runtime.
+
 "326":
   name: "Inadequate Encryption Strength"
   detection: llm
@@ -199,6 +215,30 @@
 "338":
   name: "Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)"
   detection: sast  # Covered by CWE-330 rules
+
+"345":
+  name: "Insufficient Verification of Data Authenticity"
+  detection: llm
+  file_types: [auth, middleware, startup]
+  check: |
+    Check JWT token validation configuration for missing claim validation.
+    Look for:
+    1. C# (.NET):
+       - TokenValidationParameters with ValidateIssuer=false
+       - TokenValidationParameters with ValidateAudience=false
+       - TokenValidationParameters with ValidateLifetime=false
+       - TokenValidationParameters with RequireExpirationTime=false
+       - Missing ValidIssuer/ValidIssuers or ValidAudience/ValidAudiences
+    2. Python:
+       - jwt.decode() with options={"verify_exp": False}
+       - jwt.decode() with options={"verify_aud": False}
+       - jwt.decode() without audience= parameter
+       - jwt.decode() without issuer= parameter
+       - jwt.decode() with verify=False or algorithms not specified
+    3. Both languages:
+       - Token validation that only checks signature but not claims
+       - Expiration check disabled or set to unreasonably long duration
+    Flag any JWT validation that disables issuer, audience, or expiry checks.
 
 "346":
   name: "Origin Validation Error"
@@ -330,6 +370,28 @@
     with world-write permissions, private keys or certificates without
     restrictive file permissions, database files in web-accessible directories,
     cloud storage buckets with public read/write ACLs.
+
+"757":
+  name: "Selection of Less-Secure Algorithm During Negotiation"
+  detection: llm
+  file_types: [auth, middleware, startup]
+  check: |
+    Check JWT validation code for missing algorithm restriction.
+    Look for:
+    1. C# (.NET):
+       - TokenValidationParameters without ValidAlgorithms set
+       - JwtSecurityTokenHandler without explicit algorithm validation
+       - Accepting both HS256 and RS256 when only one is intended
+    2. Python:
+       - jwt.decode() without algorithms= parameter (allows alg:none)
+       - jwt.decode(algorithms=["HS256","RS256"]) mixing symmetric/asymmetric
+       - PyJWT < 2.0 which accepted alg:none by default
+    3. Both languages:
+       - No whitelist of accepted algorithms
+       - Using symmetric key (HS256) when asymmetric (RS256/ES256) is intended
+       - Accepting the algorithm from the token header without validation
+    Flag any JWT validation that does not explicitly restrict the accepted
+    signing algorithm to a single, intended algorithm.
 
 "798":
   name: "Use of Hard-coded Credentials"

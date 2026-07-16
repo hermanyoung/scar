@@ -96,7 +96,7 @@ _FILE_TYPE_MATCHERS: dict[str, list[str]] = {
     "repository": ["repositories", "dal", "data"],
     "service": ["services", "handlers", "managers", "processors"],
     "middleware": ["middleware", "filters", "interceptors"],
-    "auth": ["auth", "identity", "login", "oauth", "jwt", "token"],
+    "auth": ["auth", "identity", "login", "oauth", "jwt", "token", "bearer", "claims"],
     "config": ["config", "settings", "appsettings", "startup", "program"],
     "startup": ["startup", "program", "main", "app", "host"],
     "error_handler": ["error", "exception", "handler", "middleware"],

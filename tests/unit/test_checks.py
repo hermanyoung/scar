@@ -42,3 +42,32 @@ def test_select_files_for_check_matches_controller_and_excludes_readme():
     paths = [f.path for f in selected]
     assert "Controllers/UserController.cs" in paths
     assert "README.md" not in paths
+
+
+def test_load_cwe_checks_returns_jwt_cwe_entries():
+    checks = {c.cwe_id: c for c in load_cwe_checks()}
+    for cwe_id in ("321", "345", "757"):
+        assert cwe_id in checks, f"CWE-{cwe_id} not returned by load_cwe_checks()"
+        assert checks[cwe_id].detection in ("llm", "sast+llm")
+        assert checks[cwe_id].check_prompt
+
+
+def test_select_files_for_check_auth_matches_jwt_keywords():
+    check = CWECheck(
+        cwe_id="345", name="Insufficient Verification of Data Authenticity",
+        detection="llm", file_types=["auth"], check_prompt="Check JWT validation.",
+    )
+    files = [
+        _entry("Services/JwtTokenService.cs"),
+        _entry("Middleware/BearerAuthHandler.cs"),
+        _entry("Models/ClaimsPrincipalFactory.cs"),
+        _entry("README.md", language="markdown"),
+    ]
+
+    selected = select_files_for_check(check, files)
+
+    paths = [f.path for f in selected]
+    assert "Services/JwtTokenService.cs" in paths
+    assert "Middleware/BearerAuthHandler.cs" in paths
+    assert "Models/ClaimsPrincipalFactory.cs" in paths
+    assert "README.md" not in paths

@@ -60,7 +60,7 @@ llm:
   concurrency: 2
 
   # Anthropic-specific: prompt caching (90% savings on repeated system prompts).
-  # All 26 CWE checks share the same system prompt — checks 2-26 hit cache.
+  # All 28 CWE checks share the same system prompt — checks 2-28 hit cache.
   # Values: "ephemeral" (request-scoped), "5m", "1h", "None" (disabled).
   # Only applies when provider_model starts with "anthropic:".
   cache_ttl: "ephemeral"
