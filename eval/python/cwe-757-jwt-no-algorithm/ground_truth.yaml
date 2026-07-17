@@ -1,0 +1,12 @@
+# Ground truth for CWE-757 JWT missing algorithm restriction corpus entry.
+
+cwe: "757"
+language: python
+description: "JWT decode without algorithms= parameter accepts alg:none"
+
+findings:
+  - file: "auth.py"
+    line: 5
+    cwe_id: "CWE-757"
+    label: true_positive
+    description: "jwt.decode() called without algorithms= - accepts any algorithm including none"

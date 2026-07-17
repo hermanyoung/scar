@@ -1,0 +1,18 @@
+# Ground truth for CWE-345 JWT missing validation corpus entry.
+
+cwe: "345"
+language: csharp
+description: "JWT validation disables issuer and audience checks"
+
+findings:
+  - file: "Startup.cs"
+    line: 15
+    cwe_id: "CWE-345"
+    label: true_positive
+    description: "ValidateIssuer disabled - tokens from any issuer are accepted"
+
+  - file: "Startup.cs"
+    line: 16
+    cwe_id: "CWE-345"
+    label: true_positive
+    description: "ValidateAudience disabled - tokens for any audience are accepted"

@@ -1,0 +1,12 @@
+# Ground truth for CWE-321 hardcoded JWT signing key corpus entry.
+
+cwe: "321"
+language: csharp
+description: "Hardcoded HS256 JWT signing key in JwtService"
+
+findings:
+  - file: "JwtService.cs"
+    line: 11
+    cwe_id: "CWE-321"
+    label: true_positive
+    description: "SymmetricSecurityKey built from a hardcoded string literal signing key"
