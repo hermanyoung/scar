@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+import rustworkx as rx
 
-from code_analysis.models import ModuleInfo, ReferenceEdge, ReferenceGraph, SymbolInfo
+from code_analysis.models import CallGraph, ModuleInfo, ReferenceEdge, ReferenceGraph, SymbolInfo
 
 
 def build_reference_graph(modules: list[ModuleInfo]) -> ReferenceGraph:
@@ -17,7 +17,7 @@ def build_reference_graph(modules: list[ModuleInfo]) -> ReferenceGraph:
     edges: list[ReferenceEdge] = []
 
     for module in modules:
-        module_qname = _path_to_module(module.path)
+        module_qname = path_to_module(module.path)
 
         for imp in module.imports:
             target = _resolve_import(imp, known_modules)
@@ -47,50 +47,68 @@ def compute_pagerank(
     """Compute PageRank scores for all nodes in the graph.
 
     Returns normalized scores (0.0-1.0) where 1.0 is the highest-rank node.
+    Uses rustworkx's power-iteration implementation (matches NetworkX semantics).
     """
-    if not graph.nodes:
+    edge_pairs = [(edge.source, edge.target) for edge in graph.edges]
+    return _pagerank_from_edges(graph.nodes, edge_pairs, damping, max_iterations, tolerance)
+
+
+def compute_call_graph_pagerank(
+    call_graph: CallGraph,
+    damping: float = 0.85,
+    max_iterations: int = 100,
+    tolerance: float = 1e-6,
+) -> dict[str, float]:
+    """Compute PageRank on the combined call + reference graph.
+
+    Returns normalized scores (0.0-1.0). Methods called by many other
+    methods rank highest -- these are the central utilities, shared services,
+    and base classes that are most likely security-relevant.
+    """
+    edge_pairs: set[tuple[str, str]] = set()
+    for edge in call_graph.call_edges:
+        edge_pairs.add((edge.caller, edge.callee))
+    for edge in call_graph.reference_edges:
+        edge_pairs.add((edge.source, edge.target))
+    return _pagerank_from_edges(call_graph.nodes, sorted(edge_pairs), damping, max_iterations, tolerance)
+
+
+def _pagerank_from_edges(
+    nodes: list[str],
+    edge_pairs: list[tuple[str, str]],
+    damping: float,
+    max_iterations: int,
+    tolerance: float,
+) -> dict[str, float]:
+    if not nodes:
         return {}
 
-    n = len(graph.nodes)
-    node_index = {name: i for i, name in enumerate(graph.nodes)}
-    outgoing: dict[int, list[int]] = defaultdict(list)
-    incoming: dict[int, list[int]] = defaultdict(list)
+    node_index = {name: i for i, name in enumerate(nodes)}
+    rx_graph: rx.PyDiGraph = rx.PyDiGraph()
+    rx_graph.add_nodes_from(nodes)
 
-    for edge in graph.edges:
-        src_idx = node_index.get(edge.source)
-        tgt_idx = node_index.get(edge.target)
+    for source, target in edge_pairs:
+        src_idx = node_index.get(source)
+        tgt_idx = node_index.get(target)
         if src_idx is not None and tgt_idx is not None and src_idx != tgt_idx:
-            outgoing[src_idx].append(tgt_idx)
-            incoming[tgt_idx].append(src_idx)
+            rx_graph.add_edge(src_idx, tgt_idx, None)
 
-    scores = [1.0 / n] * n
-    teleport = (1.0 - damping) / n
+    raw_scores = rx.pagerank(
+        rx_graph, alpha=damping, tol=tolerance, max_iter=max_iterations,
+    )
+    scores = {nodes[idx]: score for idx, score in raw_scores.items()}
 
-    for _ in range(max_iterations):
-        new_scores = [0.0] * n
-        dangling_sum = sum(scores[i] for i in range(n) if not outgoing[i])
-        dangling_contribution = damping * dangling_sum / n
-
-        for i in range(n):
-            rank_sum = sum(scores[src] / len(outgoing[src]) for src in incoming[i])
-            new_scores[i] = teleport + dangling_contribution + damping * rank_sum
-
-        delta = sum(abs(new_scores[i] - scores[i]) for i in range(n))
-        scores = new_scores
-        if delta < tolerance:
-            break
-
-    max_score = max(scores) if scores else 1.0
+    max_score = max(scores.values()) if scores else 1.0
     if max_score > 0:
-        scores = [s / max_score for s in scores]
+        scores = {name: score / max_score for name, score in scores.items()}
 
-    return {graph.nodes[i]: scores[i] for i in range(n)}
+    return scores
 
 
 # -- Internal helpers --------------------------------------------------------
 
 
-def _path_to_module(rel_path: str) -> str:
+def path_to_module(rel_path: str) -> str:
     module = rel_path.replace("/", ".").replace("\\", ".")
     if module.endswith(".py"):
         module = module[:-3]
@@ -106,7 +124,7 @@ def _path_to_module(rel_path: str) -> str:
 def _build_module_index(modules: list[ModuleInfo]) -> set[str]:
     index: set[str] = set()
     for module in modules:
-        qname = _path_to_module(module.path)
+        qname = path_to_module(module.path)
         index.add(qname)
         parts = qname.split(".")
         for i in range(1, len(parts)):
@@ -131,7 +149,7 @@ def _build_import_tables(
 ) -> dict[str, dict[str, str]]:
     tables: dict[str, dict[str, str]] = {}
     for module in modules:
-        module_qname = _path_to_module(module.path)
+        module_qname = path_to_module(module.path)
         table: dict[str, str] = {}
         for imp in module.imports:
             resolved = _resolve_import(imp, known_modules)

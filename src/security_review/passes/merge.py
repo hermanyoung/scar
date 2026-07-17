@@ -16,6 +16,7 @@ from pathlib import Path
 import structlog
 
 from security_review import __version__
+from security_review.fingerprint import fingerprint_finding
 from security_review.fsio import atomic_write_json
 from security_review.models.degradation import Degradation
 from security_review.models.findings import Severity
@@ -30,6 +31,46 @@ from security_review.sarif.tags import extract_cwe_ids_from_sarif, normalise_cwe
 from security_review.sarif.taxonomy import inject_taxonomy
 
 logger = structlog.get_logger()
+
+
+def fingerprint_and_track_findings(
+    state: PipelineState, all_results: list[dict], rule_cwe_map: dict[str, str],
+) -> None:
+    """Record each finding's fingerprint in .scar/graph.db for cross-run tracking.
+
+    Optional and best-effort, mirroring _build_call_graph_if_available in
+    pipeline.py: a failure here (e.g. an unwritable target directory) must
+    never break report generation, so any exception is logged and swallowed.
+    """
+    try:
+        from code_analysis.store import GraphStore, init_target_gitignore
+
+        init_target_gitignore(state.target_path)
+        with GraphStore(state.target_path / ".scar" / "graph.db") as store:
+            store.start_run(state.run_id, str(state.target_path), __version__)
+            new_count = 0
+            for result in all_results:
+                cwe_id = rule_cwe_map.get(result.get("ruleId", ""), "")
+                locations = result.get("locations", [])
+                if not locations:
+                    continue
+                phys = locations[0].get("physicalLocation", {})
+                file_path = phys.get("artifactLocation", {}).get("uri", "")
+                line = phys.get("region", {}).get("startLine", 0)
+                message = result.get("message", {}).get("text", "")
+
+                fp = fingerprint_finding(cwe_id, "", file_path, message)
+                status = store.record_finding(
+                    fp, state.run_id, cwe_id, result.get("level", "warning"),
+                    file_path, line, message, confidence=1.0,
+                )
+                if status == "new":
+                    new_count += 1
+            store.finish_run(state.run_id)
+            store.commit()
+        logger.info("merge.findings_tracked", total=len(all_results), new=new_count)
+    except Exception as e:
+        logger.warning("merge.finding_tracking_failed", error=str(e))
 
 
 def write_artifacts(state: PipelineState) -> Path:
@@ -123,6 +164,9 @@ def write_artifacts(state: PipelineState) -> Path:
                     rule_cwe_map[rule["id"]] = f"CWE-{num}"
                     break
 
+    # Cross-run finding tracking (optional, best-effort — see fingerprint_and_track_findings).
+    fingerprint_and_track_findings(state, all_results, rule_cwe_map)
+
     # Write reports — triage counts derived from SARIF properties (single source of truth)
     error_summaries = [
         f"{e.pass_name}: {e.error_type}: {e.error}" for e in state.errors
@@ -172,6 +216,8 @@ def write_artifacts(state: PipelineState) -> Path:
     }
     if state.triage_result:
         triage_data["triage"] = state.triage_result.model_dump()
+    if state.file_selection_telemetry:
+        triage_data["file_selection"] = [t.__dict__ for t in state.file_selection_telemetry]
 
     with open(triage_path, "w", encoding="utf-8") as f:
         json.dump(triage_data, f, indent=2)

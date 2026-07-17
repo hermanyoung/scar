@@ -1,0 +1,80 @@
+# Sink patterns per CWE per language, and entry-point patterns per language.
+#
+# Used two ways by src/code_analysis:
+#   1. classify_symbol() tags locally-defined methods/functions whose OWN
+#      qualified_name matches a sink pattern (custom wrapper methods).
+#   2. walk.py matches these SAME patterns directly against call-edge callee
+#      names -- this is the primary mechanism, since real sinks (cursor.execute,
+#      os.system, pickle.loads) are almost always external library calls that
+#      never appear in the target codebase's own parsed symbol table.
+
+python:
+  sinks:
+    CWE-89:
+      - "*.execute"          # cursor.execute, connection.execute
+      - "sqlalchemy.text"
+      - "django.db.connection.cursor"
+      - "*.raw"              # Django Manager.raw()
+      - "*.extra"            # Django QuerySet.extra()
+    CWE-78:
+      - "os.system"
+      - "os.popen"
+      - "subprocess.call"
+      - "subprocess.run"
+      - "subprocess.Popen"
+    CWE-502:
+      - "pickle.loads"
+      - "pickle.load"
+      - "yaml.load"
+      - "jsonpickle.decode"
+      - "shelve.open"
+    CWE-22:
+      - "builtins.open"
+      - "pathlib.Path.open"
+      - "shutil.copy"
+      - "shutil.move"
+  entry_points:
+    - "*.route"              # Flask @app.route
+    - "*.get"                # FastAPI @router.get
+    - "*.post"
+    - "*.put"
+    - "*.delete"
+    - "*.patch"
+
+csharp:
+  sinks:
+    CWE-89:
+      - "*.FromSqlRaw"
+      - "*.ExecuteSqlRaw"
+      - "*.ExecuteReader"
+      - "*.ExecuteNonQuery"
+      - "*.ExecuteScalar"
+      - "Dapper.SqlMapper.Query"
+      - "Dapper.SqlMapper.Execute"
+    CWE-502:
+      - "BinaryFormatter.Deserialize"
+      - "NetDataContractSerializer.ReadObject"
+      - "JsonConvert.DeserializeObject"
+      - "JavaScriptSerializer.Deserialize"
+      - "XmlSerializer.Deserialize"
+    CWE-78:
+      - "Process.Start"
+      - "ProcessStartInfo"
+    CWE-22:
+      - "System.IO.File.Open"
+      - "System.IO.File.ReadAllText"
+      - "System.IO.File.WriteAllText"
+      - "System.IO.StreamReader"
+  entry_points:
+    decorators:
+      - "HttpGet"
+      - "HttpPost"
+      - "HttpPut"
+      - "HttpDelete"
+      - "HttpPatch"
+      - "Route"
+      - "ApiController"
+    base_classes:
+      - "ControllerBase"
+      - "Controller"
+      - "PageModel"

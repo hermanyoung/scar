@@ -33,6 +33,9 @@ class SymbolInfo:
     fields: list[str] = field(default_factory=list)
     methods: list[SymbolInfo] = field(default_factory=list)
     decorators: list[str] = field(default_factory=list)
+    is_entry_point: bool = False
+    is_sink: bool = False
+    cwe_tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -126,6 +129,41 @@ class ReferenceGraph:
 
     nodes: list[str]
     edges: list[ReferenceEdge]
+
+
+@dataclass(frozen=True)
+class CallEdge:
+    """A method-level call relationship, extracted from pyan3 (Python) or Roslyn (C#)."""
+
+    caller: str          # qualified_name of the calling method/function
+    callee: str          # qualified_name (or unresolved wildcard) of the called method/function
+    file_path: str       # file containing the call site (the caller's file)
+    line: int            # line number of the call site (or the caller's def line if unavailable)
+    confidence: float    # 1.0=fully resolved, 0.5-0.7=heuristic, 0.3=wildcard/unresolved
+    kind: str             # "direct", "virtual", "extension", "dynamic"
+
+    def __hash__(self) -> int:
+        return hash((self.caller, self.callee, self.line))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, CallEdge):
+            return NotImplemented
+        return (self.caller == other.caller
+                and self.callee == other.callee
+                and self.line == other.line)
+
+
+@dataclass
+class CallGraph:
+    """Method-level call graph for taint-aware file selection."""
+
+    nodes: list[str]
+    call_edges: list[CallEdge]
+    reference_edges: list[ReferenceEdge]
+    entry_points: list[str]                   # qualified_names with is_entry_point
+    sinks: dict[str, list[str]]               # qualified_name -> list of CWE IDs (locally-defined sinks)
+    file_symbols: dict[str, list[str]]        # file_path -> list of qualified_names
+    symbol_files: dict[str, str]              # qualified_name -> file_path
 
 
 @dataclass

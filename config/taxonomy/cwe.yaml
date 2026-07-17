@@ -10,11 +10,21 @@
 #                   tool       = External tool (pip-audit, dotnet-vuln)
 #   file_types  - Which files the LLM check should read (for detection=llm|sast+llm)
 #   check       - Focused prompt for the LLM agent (one CWE, one question)
+#   walk_direction - Optional: "backward" (from sinks), "forward" (from entry
+#                    points), or "both". When set, select_files_for_cwe() adds
+#                    call-graph-reachable files on top of file_types keyword
+#                    matches. Omit to use keyword matching only.
+#   max_hops    - BFS depth limit for walk_direction (default 5 if omitted)
+#   sink_patterns - CWE keys into config/taxonomy/sinks.yaml (required for
+#                   walk_direction: backward|both)
 
 "22":
   name: "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
   detection: sast+llm
   file_types: [controller, route, file_handler]
+  walk_direction: backward
+  max_hops: 5
+  sink_patterns: ["22"]
   check: |
     Check whether file paths constructed from user input are validated before use.
     Look for open(), Path(), shutil operations where the path includes request parameters,
@@ -41,6 +51,9 @@
   name: "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
   detection: sast+llm
   file_types: [model, repository, service, controller]
+  walk_direction: backward
+  max_hops: 5
+  sink_patterns: ["89"]
   check: |
     Check for SQL queries built with string formatting or concatenation using user input.
     Look for ORM bypass patterns: Django raw(), extra(), RawSQL(); SQLAlchemy text() with
@@ -292,6 +305,9 @@
   name: "Deserialization of Untrusted Data"
   detection: sast+llm
   file_types: [api, service, message_handler]
+  walk_direction: both
+  max_hops: 6
+  sink_patterns: ["502"]
   check: |
     Trace data flow to deserialization sinks. SAST catches direct pickle.loads()
     and BinaryFormatter usage — focus on indirect flows where untrusted data
@@ -405,6 +421,8 @@
   name: "Missing Authorization"
   detection: llm
   file_types: [controller, route, middleware]
+  walk_direction: forward
+  max_hops: 3
   check: |
     Check whether state-changing endpoints (POST, PUT, DELETE) have explicit
     authorization enforcement. Read each controller and route file. Verify
@@ -421,6 +439,8 @@
   name: "Incorrect Authorization"
   detection: llm
   file_types: [controller, repository, service]
+  walk_direction: forward
+  max_hops: 4
   check: |
     Check for authorization checks that are present but incorrect (IDOR).
     Look for database queries that fetch records by user-supplied ID without

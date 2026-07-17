@@ -6,6 +6,10 @@ dist/
 build/
 .venv/
 
+# .NET (tools/roslyn-callgraph)
+tools/roslyn-callgraph/bin/
+tools/roslyn-callgraph/obj/
+
 # IDE
 .idea/
 .vscode/

@@ -22,7 +22,7 @@ from pydantic_ai.settings import ModelSettings
 
 from security_review.agents.deps import SecurityReviewDeps
 from security_review.agents.holistic.agent import build_holistic_agent
-from security_review.checks import CWECheck, load_cwe_checks, select_files_for_check
+from security_review.checks import CWECheck, load_cwe_checks, select_files_for_cwe
 from security_review.context_builder import inline_files
 from security_review.errors import is_context_overflow_error, is_fatal_error
 from security_review.model_capabilities import supports_native_json, HOLISTIC_FORMAT_MARKDOWN
@@ -122,7 +122,10 @@ async def run_holistic(state: PipelineState) -> None:
     # Filter checks to those with relevant files
     runnable: list[tuple[CWECheck, list[str]]] = []
     for check in checks:
-        relevant_files = select_files_for_check(check, source_files)
+        relevant_files, telemetry = select_files_for_cwe(
+            check, source_files, call_graph=state.call_graph, pagerank=state.pagerank,
+        )
+        state.file_selection_telemetry.append(telemetry)
         file_paths = [f.path for f in relevant_files]
         if file_paths:
             runnable.append((check, file_paths))

@@ -283,7 +283,7 @@ class CSharpParser:
 
     def _extract_structure(self, root: Any, source: str, rel_path: str) -> ModuleInfo:
         line_count = source.count("\n") + 1
-        module_qname = _path_to_module(rel_path)
+        module_qname = self._extract_namespace(root, source) or _path_to_module(rel_path)
 
         imports = self._extract_using_directives(root, source)
         classes = self._extract_class_symbols(root, source, module_qname)
@@ -297,6 +297,22 @@ class CSharpParser:
             functions=[],  # C# top-level functions are rare
             constants=[],
         )
+
+    def _extract_namespace(self, root: Any, source: str) -> str | None:
+        """Extract the file's declared namespace (real symbol identity).
+
+        Falls back to path_to_module(rel_path) when a file has no namespace
+        declaration (e.g. top-level statements). Using the actual C#
+        namespace -- rather than a path-derived approximation -- is what
+        lets qualified names here agree with Roslyn's semantic-model naming
+        used by the call graph tool (tools/roslyn-callgraph).
+        """
+        for node in self._walk(root):
+            if node.type in ("namespace_declaration", "file_scoped_namespace_declaration"):
+                for child in node.children:
+                    if child.type in ("qualified_name", "identifier"):
+                        return self._node_text(child, source)
+        return None
 
     def _extract_using_directives(self, root: Any, source: str) -> list[str]:
         imports: list[str] = []

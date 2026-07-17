@@ -99,3 +99,22 @@ class TestStructure:
         has_valid_email = next(m for m in methods if m.name == "HasValidEmail")
         assert len(has_valid_email.params) == 1
         assert "email" in has_valid_email.params[0]
+
+    def test_qualified_name_uses_real_namespace_not_file_path(self, parser):
+        # Clean.cs declares `namespace CleanApp` -- qualified_name must reflect
+        # that (matching Roslyn's semantic naming), not the file path "Clean".
+        result = parser.analyze_file(FIXTURES / "Clean.cs", "Clean.cs", include_structure=True)
+        assert result is not None
+        user_cls = result.module.classes[0]
+        assert user_cls.qualified_name == "CleanApp.User"
+        display_name = next(m for m in user_cls.methods if m.name == "DisplayName")
+        assert display_name.qualified_name == "CleanApp.User.DisplayName"
+
+    def test_qualified_name_falls_back_to_path_without_namespace(self, parser, tmp_path):
+        source = "public class TopLevel\n{\n    public void Run() { }\n}\n"
+        file_path = tmp_path / "NoNamespace.cs"
+        file_path.write_text(source)
+        result = parser.analyze_file(file_path, "Utils/NoNamespace.cs", include_structure=True)
+        assert result is not None
+        cls = result.module.classes[0]
+        assert cls.qualified_name == "Utils.NoNamespace.TopLevel"

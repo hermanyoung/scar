@@ -6,6 +6,7 @@ Agents never call subprocess directly.
 from __future__ import annotations
 
 import asyncio
+import subprocess
 import time
 from pathlib import Path
 
@@ -106,3 +107,33 @@ async def run_tool(
             success=False,
             duration_ms=duration_ms,
         )
+
+
+def run_tool_sync(
+    cmd: list[str],
+    timeout_seconds: int,
+    cwd: str | None = None,
+) -> subprocess.CompletedProcess:
+    """Run an arbitrary command synchronously. Never uses shell=True.
+
+    For build-time tooling (e.g. tools/roslyn-callgraph) invoked before the
+    async pipeline starts -- not for SAST scanners, which use run_tool().
+    Never raises: timeout and binary-not-found both come back as a
+    CompletedProcess with returncode=-1 and the error in stderr.
+    """
+    tool_name = cmd[0] if cmd else "<empty>"
+    logger.info("tool.sync_started", tool_name=tool_name)
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout_seconds, cwd=cwd,
+        )
+        logger.info("tool.sync_completed", tool_name=tool_name, exit_code=result.returncode)
+        return result
+    except subprocess.TimeoutExpired:
+        logger.warning("tool.sync_timeout", tool_name=tool_name, timeout_seconds=timeout_seconds)
+        return subprocess.CompletedProcess(
+            cmd, returncode=-1, stdout="", stderr=f"timed out after {timeout_seconds}s",
+        )
+    except OSError as e:
+        logger.error("tool.sync_failed", tool_name=tool_name, error=str(e))
+        return subprocess.CompletedProcess(cmd, returncode=-1, stdout="", stderr=str(e))

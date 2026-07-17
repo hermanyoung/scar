@@ -9,6 +9,52 @@ import click
 from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
 
 
+def _print_selection_comparison(check, entries, target_path: Path) -> None:
+    """Report graph-walk vs keyword-only file selection for one CWE check.
+
+    Read-only comparison, no LLM call — for measuring whether call-graph
+    selection actually finds files keyword matching misses (plan 010 Phase 3).
+    """
+    from code_analysis import analyze, compute_call_graph_pagerank
+    from code_analysis.call_graph import build_call_graph
+
+    from security_review.checks import select_files_for_check, select_files_for_cwe
+    from security_review.passes.pipeline import find_csharp_project
+
+    metrics = analyze(target_path, include_graph=True)
+    python_files = [target_path / f.path for f in entries if f.language == "python"]
+    csharp_solution = find_csharp_project(target_path)
+
+    graph = build_call_graph(
+        target_path, metrics.modules,
+        python_files=python_files or None, csharp_solution=csharp_solution,
+    )
+    pagerank = compute_call_graph_pagerank(graph)
+
+    graph_selected, telemetry = select_files_for_cwe(check, entries, call_graph=graph, pagerank=pagerank)
+    keyword_selected = select_files_for_check(check, entries)
+
+    graph_paths = {f.path for f in graph_selected}
+    keyword_paths = {f.path for f in keyword_selected}
+    graph_only = sorted(graph_paths - keyword_paths)
+    keyword_only = sorted(keyword_paths - graph_paths)
+    both = sorted(graph_paths & keyword_paths)
+
+    click.echo(f"\n{check.display_name} — file selection comparison")
+    click.echo(f"  Method used:    {telemetry.method}")
+    click.echo(f"  Call graph:     {len(graph.nodes)} nodes, {len(graph.call_edges)} call edges")
+    click.echo()
+    click.echo(f"  Graph-only ({len(graph_only)}) — keyword matching missed these:")
+    for p in graph_only[:20]:
+        click.echo(f"    + {p}")
+    click.echo()
+    click.echo(f"  Keyword-only ({len(keyword_only)}) — graph walk missed these:")
+    for p in keyword_only[:20]:
+        click.echo(f"    + {p}")
+    click.echo()
+    click.echo(f"  Both ({len(both)} files)")
+
+
 @cli.command("test-cwe")
 @click.option("--cwe", required=True, help="CWE number (e.g. 863 or CWE-863).")
 @click.option("--target", required=True, type=click.Path(exists=True),
@@ -19,15 +65,17 @@ from security_review.cli.app import PROJECT_ROOT, _setup_logging, cli
               help="Write trace file to var/output/.")
 @click.option("--temperature", type=float, default=None,
               help="Override LLM temperature (0.0=deterministic, 1.0=creative).")
+@click.option("--compare-selection", is_flag=True,
+              help="Compare graph-walk vs keyword-only file selection and exit (no LLM call).")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed output.")
 @click.option("--debug", is_flag=True, help="DEBUG-level logging.")
-def test_cwe(cwe, target, provider, trace, temperature, verbose, debug):
+def test_cwe(cwe, target, provider, trace, temperature, compare_selection, verbose, debug):
     """Run a single LLM holistic CWE check against a target."""
     _setup_logging(verbose or not debug, debug, quiet=False,
                    json_logs=False, no_file_log=True)
 
     from security_review.config import load_config
-    from security_review.checks import load_cwe_checks, select_files_for_check
+    from security_review.checks import load_cwe_checks, select_files_for_check, select_files_for_cwe
     from security_review.passes.inventory import discover_files
 
     cfg = load_config()
@@ -51,6 +99,10 @@ def test_cwe(cwe, target, provider, trace, temperature, verbose, debug):
 
     # File discovery — same code path as the pipeline (Pass 1)
     entries = discover_files(target_path, cfg.sast.scanner_max_file_size_bytes)
+
+    if compare_selection:
+        _print_selection_comparison(check, entries, target_path)
+        return
 
     relevant = select_files_for_check(check, entries)
     file_paths = [f.path for f in relevant]

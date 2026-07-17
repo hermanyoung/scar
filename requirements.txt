@@ -9,9 +9,11 @@ click>=8.0
 structlog>=24.0
 rich>=13.0
 
-# Code intelligence (C# AST parsing)
+# Code intelligence (C# AST parsing, call-graph-powered file selection)
 tree-sitter>=0.23
 tree-sitter-c-sharp>=0.23
+rustworkx>=0.15
+pyan3>=2.6              # Python call graph extraction (optional, degrades gracefully)
 
 # LLM orchestration (PydanticAI + providers)
 pydantic-ai[openai,anthropic]>=0.2.14

@@ -8,9 +8,11 @@ from __future__ import annotations
 import time
 from collections.abc import Awaitable, Callable
 from enum import Enum, auto
+from pathlib import Path
 
 import structlog
 
+from code_analysis.models import CallGraph
 from security_review.errors import is_fatal_error
 from security_review.models.degradation import Degradation
 from security_review.passes.checkpoint import completed_passes, init_run, save_pass
@@ -25,6 +27,63 @@ def _safe_progress(callback: ProgressCallback, pass_number: int, pass_name: str,
         callback(pass_number, pass_name, status, detail)
     except Exception as e:
         logger.debug("progress.callback_failed", error=str(e))
+
+
+def find_csharp_project(target_path: Path) -> Path | None:
+    """Find a .sln (preferred) or .csproj under target_path for the Roslyn tool."""
+    solutions = sorted(target_path.rglob("*.sln"))
+    if solutions:
+        return solutions[0]
+    projects = sorted(target_path.rglob("*.csproj"))
+    return projects[0] if projects else None
+
+
+def _build_call_graph_if_available(state: PipelineState) -> tuple["CallGraph | None", "dict[str, float] | None"]:
+    """Build the call graph from Pass 1's manifest. Returns (None, None) if unavailable.
+
+    Persists to .scar/graph.db in the target repo so unchanged files are not
+    re-parsed on the next run against the same target (Phase 2 incrementalism).
+    Optional and best-effort -- run_holistic() degrades to keyword-only file
+    selection when this returns (None, None), so a failure here never halts
+    the pipeline (P6: fail loud for fatal errors, but this isn't one).
+    """
+    if state.manifest is None:
+        return None, None
+    try:
+        from code_analysis import analyze, compute_call_graph_pagerank
+        from code_analysis.call_graph import build_call_graph_incremental
+        from code_analysis.store import GraphStore, init_target_gitignore
+
+        metrics = analyze(state.target_path, include_graph=True)
+        if not metrics.modules:
+            return None, None
+
+        python_files = [
+            state.target_path / f.path
+            for f in state.manifest.files
+            if f.language == "python"
+        ]
+        csharp_solution = find_csharp_project(state.target_path)
+
+        init_target_gitignore(state.target_path)
+        with GraphStore(state.target_path / ".scar" / "graph.db") as store:
+            graph = build_call_graph_incremental(
+                state.target_path, metrics.modules, store,
+                python_files=python_files or None,
+                csharp_solution=csharp_solution,
+            )
+        pagerank = compute_call_graph_pagerank(graph)
+        logger.info(
+            "pipeline.call_graph_built",
+            nodes=len(graph.nodes),
+            call_edges=len(graph.call_edges),
+            entry_points=len(graph.entry_points),
+            sinks=sum(len(v) for v in graph.sinks.values()),
+        )
+        return graph, pagerank
+    except Exception as e:
+        logger.warning("pipeline.call_graph_failed", error=str(e))
+        return None, None
 
 
 # Re-export so existing imports from pipeline still work
@@ -217,6 +276,10 @@ async def run_pipeline(state: PipelineState) -> "Path":
             else:
                 progress(3, "triage", "done", "skipped (no findings to triage)")
             _stream_partial(state)
+
+        # Build the call graph (optional, best-effort) so Pass 4's file
+        # selection can walk from sinks/entry-points instead of keywords alone.
+        state.call_graph, state.pagerank = _build_call_graph_if_available(state)
 
         # Pass 4: Holistic
         outcome = await _run_or_restore(state, progress, completed, 4, "holistic",

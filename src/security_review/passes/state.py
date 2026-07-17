@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
+from code_analysis.models import CallGraph
 from security_review.budget import CostTracker
+from security_review.checks import FileSelectionTelemetry
 from security_review.config_schema import SecurityReviewConfig
 from security_review.evidence import EvidenceManifest
 from security_review.models.config_review import ConfigReviewResult
@@ -72,6 +74,14 @@ class PipelineState:
 
     # Pass 4 outputs
     holistic_result: HolisticReviewResult | None = None
+
+    # Call graph (built between Pass 3 and Pass 4, consumed by run_holistic's
+    # file selection). None means graph-walk selection is unavailable —
+    # run_holistic falls back to keyword-only selection, same as before this
+    # existed.
+    call_graph: CallGraph | None = None
+    pagerank: dict[str, float] | None = None
+    file_selection_telemetry: list[FileSelectionTelemetry] = field(default_factory=list)
 
     # Pass 5 outputs
     config_review_result: ConfigReviewResult | None = None

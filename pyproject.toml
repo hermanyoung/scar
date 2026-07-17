@@ -16,6 +16,7 @@ dependencies = [
     "rich>=13.0",
     "tree-sitter>=0.23",
     "tree-sitter-c-sharp>=0.23",
+    "rustworkx>=0.15",
 ]
 
 [project.optional-dependencies]
@@ -23,12 +24,14 @@ openai = ["pydantic-ai[openai]>=0.2.14"]
 anthropic = ["pydantic-ai[anthropic]>=0.2.14"]
 copilot = ["github-copilot-sdk==0.2.2", "json-repair>=0.30"]
 claude = ["claude-agent-sdk>=0.1.63"]
+callgraph = ["pyan3>=2.6"]
 all = [
     "pydantic-ai[openai,anthropic]>=0.2.14",
     "bandit[sarif]>=1.9.4",
     "github-copilot-sdk==0.2.2",
     "claude-agent-sdk>=0.1.63",
     "json-repair>=0.30",
+    "pyan3>=2.6",
 ]
 sast = [
     "bandit[sarif]>=1.9.4",
