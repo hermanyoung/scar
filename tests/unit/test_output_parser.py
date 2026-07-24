@@ -289,6 +289,7 @@ def test_holistic_markdown_unparseable_sets_review_notes():
 def test_holistic_empty_text_returns_none():
     result = parse_holistic_response("", files_reviewed=["app.py"])
     assert result is None
+    assert parse_holistic_response("   \n\t", files_reviewed=["app.py"]) is None
 
 
 def test_holistic_markdown_rule_id_normalised():

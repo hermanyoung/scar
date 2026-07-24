@@ -44,7 +44,7 @@ logger = structlog.get_logger()
 
 class _Outcome(Enum):
     """Classification of a single CWE check result."""
-    COMPLETED = auto()       # findings extracted (possibly empty — LLM said "no findings")
+    COMPLETED = auto()       # findings extracted, or the LLM explicitly answered "no findings"
     RETRY = auto()           # transient failure or parse failure — worth retrying
     FATAL = auto()           # auth/config error — abort the entire pass
     OVERFLOW = auto()        # prompt exceeded the context window — retry with half the files
@@ -410,11 +410,23 @@ async def run_single_check(
     # Uses `included`, not `file_paths`: files the token budget omitted from the
     # prompt were never seen by the LLM and must not be claimed as reviewed (WP2).
     output = result.output
+    empty_response = False
     if isinstance(output, HolisticReviewResult):
         review_result = output.model_copy(update={"files_reviewed": included})
     else:
         review_result = parse_holistic_response(output, files_reviewed=included)
         if review_result is None:
+            # parse_holistic_response returns None ONLY for an empty/whitespace
+            # response — the model never answered this check. Flag it as a
+            # parse failure so _classify_result routes it to RETRY and, if it
+            # persists, a check_failed degradation ("NOT assessed"). It must
+            # never be recorded as a clean COMPLETED check.
+            empty_response = True
+            logger.warning(
+                "holistic.empty_response",
+                cwe_id=check.cwe_id,
+                files_in_prompt=len(included),
+            )
             review_result = HolisticReviewResult(findings=[], files_reviewed=included)
 
     # P13: the check's CWE is known bookkeeping — never trust the LLM echo.
@@ -423,9 +435,12 @@ async def run_single_check(
         "findings": [f.model_copy(update={"cwe_id": stamped_cwe}) for f in review_result.findings],
     })
 
-    # parse_failed=True when the LLM gave a non-empty response but we extracted nothing.
-    # review_notes is set by the parser exactly when that happens.
-    parse_failed = not review_result.findings and review_result.review_notes is not None
+    # parse_failed=True when the response was empty (never answered) or when
+    # the LLM gave a non-empty response we could extract nothing from
+    # (review_notes is set by the parser exactly in that second case).
+    parse_failed = empty_response or (
+        not review_result.findings and review_result.review_notes is not None
+    )
 
     if state.ledger is not None:
         state.ledger.append("holistic_check", cwe_id=check.cwe_id,
