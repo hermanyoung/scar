@@ -17,6 +17,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 import sys
@@ -772,6 +773,9 @@ def _prompt_user(message: str, default_yes: bool = True) -> bool:
     return answer in ("y", "yes")
 
 
+_SHELL_META = ("&&", "||", "|", ";", ">", "<", "$", "`")
+
+
 def fix_missing(
     all_results: list[CheckResult],
     auto: bool = False,
@@ -797,14 +801,22 @@ def fix_missing(
             if is_pip_cmd:
                 cmd = [sys.executable, "-m"] + r.fix_cmd.split()
             else:
-                cmd = r.fix_cmd
+                # An unquoted " #" was a comment under the old shell=True
+                # (bash strips it); strip it the same way now that we exec
+                # argv directly, so existing fix_cmd strings round-trip
+                # identically (e.g. "brew install betterleaks  # or: ...").
+                cmd_str = r.fix_cmd.split(" #", 1)[0].rstrip()
+                if cmd_str.startswith(("export ", "See ")) or any(m in cmd_str for m in _SHELL_META):
+                    # An instruction for the operator, not an executable
+                    # command (e.g. "export OPENAI_API_KEY=..." does nothing
+                    # useful in a child process anyway; "See https://...").
+                    print(f"  {_C.YELLOW}Manual step — run yourself: {r.fix_cmd}{_C.RESET}")
+                    continue
+                cmd = shlex.split(cmd_str)
 
             print(f"  {_C.DIM}Running: {r.fix_cmd}{_C.RESET}")
             try:
-                if is_pip_cmd:
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-                else:
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
                 if result.returncode == 0:
                     print(f"  {_C.GREEN}Done.{_C.RESET}")
