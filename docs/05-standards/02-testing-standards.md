@@ -45,7 +45,7 @@ tests/
 pytest tests/unit/ -v           # Unit tests (no external tools, no API keys)
 pytest tests/integration/ -v    # Integration tests (may require bandit, gitleaks)
 python scripts/check_rules.py --all  # Code rules check (31 automated rules)
-python scripts/code_quality.py --no-bandit --no-radon  # PQI quality score
+python scar.py quality --target . --scope src --no-tools  # PQI quality score (AST-only)
 ```
 
 ---

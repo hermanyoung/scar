@@ -578,7 +578,6 @@ scar/
     check_rules.py             # Internal code rule checker
     code_intel.py               # Structural analysis
     code_map.py                 # Code map generation
-    code_quality.py             # Standalone quality scoring
   var/
     output/                   # Review output: {date}-{target}-{run-id}/
     logs/                     # JSONL system logs (daily rotation)

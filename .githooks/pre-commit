@@ -4,4 +4,4 @@
 set -euo pipefail
 python scripts/check_rules.py || exit 1
 python scripts/code_map.py
-python scripts/code_quality.py --no-bandit --no-radon
+python scar.py quality --target . --scope src --no-tools --output .codemap/quality.json
