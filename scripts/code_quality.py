@@ -1012,7 +1012,7 @@ def _result_to_dict(result: PQIResult) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score codebase quality using the PyQuality Index (PQI).")
-    parser.add_argument("--scope", nargs="*", default=["src/security_review/", "tests/"], help="Directories to include")
+    parser.add_argument("--scope", nargs="*", default=["src/", "tests/"], help="Directories to include")
     parser.add_argument("--exclude", nargs="*", default=["__pycache__/"], help="Patterns to exclude")
     parser.add_argument("--profile", choices=list(WEIGHT_PROFILES.keys()), default="safety_critical", help="Weight profile (default: safety_critical)")
     parser.add_argument("--no-code-map", action="store_true", help="Skip code map for modularity scoring")

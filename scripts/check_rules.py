@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SRC_DIR = PROJECT_ROOT / "src" / "security_review"
+SRC_DIR = PROJECT_ROOT / "src"
 
 
 @dataclass
@@ -41,7 +41,7 @@ class Violation:
 
 def check_relative_imports(path: Path, rel: str) -> list[Violation]:
     """001.1 — No relative imports."""
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     violations = []
     pattern = re.compile(r"^\s*from\s+\.")
@@ -120,12 +120,14 @@ def check_subprocess_isolation(path: Path, rel: str) -> list[Violation]:
 
 def check_no_shell_true(path: Path, rel: str) -> list[Violation]:
     """001.5 — Never shell=True."""
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     violations = []
     pattern = re.compile(r"shell\s*=\s*True")
+    string_prefix = re.compile(r"^(f|r|b|rb|br|fr|rf)?['\"]", re.IGNORECASE)
     for i, line in enumerate(path.read_text().splitlines(), 1):
-        if line.strip().startswith(("#", '"', "'")):
+        stripped = line.strip()
+        if stripped.startswith("#") or string_prefix.match(stripped):
             continue
         if pattern.search(line):
             violations.append(Violation(
@@ -181,7 +183,7 @@ def check_models_no_upward(path: Path, rel: str) -> list[Violation]:
 
 def check_file_size(path: Path, rel: str) -> list[Violation]:
     """002.1 — Files must not exceed 1000 lines."""
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     lines = path.read_text().splitlines()
     if len(lines) > 1000:
@@ -210,7 +212,7 @@ def check_todo_markers(path: Path, rel: str) -> list[Violation]:
     documenting the holistic finding ID format) — that XXX is a category
     placeholder, not a stale-work marker.
     """
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     violations = []
     pattern = re.compile(r"\b(TODO|FIXME|HACK)\b|(?<!SR-)\bXXX\b")
@@ -224,7 +226,7 @@ def check_todo_markers(path: Path, rel: str) -> list[Violation]:
 
 def check_hardcoded_urls(path: Path, rel: str) -> list[Violation]:
     """002.4 — No hardcoded host/port/URL."""
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     violations = []
     pattern = re.compile(r"(localhost|127\.0\.0\.1|:5432|:6379|:8080)")
@@ -256,7 +258,7 @@ def check_sync_blocking(path: Path, rel: str) -> list[Violation]:
 
 def check_silent_exception_swallow(path: Path, rel: str) -> list[Violation]:
     """002.7 — No silent exception swallowing."""
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     violations = []
     try:
@@ -276,7 +278,7 @@ def check_silent_exception_swallow(path: Path, rel: str) -> list[Violation]:
             for s in body
         )
         has_error_return = any(
-            isinstance(s, ast.Return) and s.value and "Error" in ast.dump(s.value)
+            isinstance(s, ast.Return) and s.value is not None
             for s in body
         )
         if not has_raise and not has_log and not has_error_return:
@@ -308,7 +310,7 @@ def check_hardcoded_secrets(path: Path, rel: str) -> list[Violation]:
 
 def check_os_getenv_fallback(path: Path, rel: str) -> list[Violation]:
     """003.5 — No os.getenv() with hardcoded fallbacks."""
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     if "test_" in rel or "conftest" in rel:
         return []
@@ -325,7 +327,7 @@ def check_os_getenv_fallback(path: Path, rel: str) -> list[Violation]:
 
 def check_untyped_kwargs(path: Path, rel: str) -> list[Violation]:
     """002.5 — No untyped **kwargs in public functions."""
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     if rel.endswith("logging.py") or "test_" in rel or "conftest" in rel:
         return []

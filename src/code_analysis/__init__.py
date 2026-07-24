@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import structlog
+
 from code_analysis.collect import collect_files
 from code_analysis.graph import build_reference_graph, compute_call_graph_pagerank, compute_pagerank
 from code_analysis.models import (
@@ -25,6 +27,8 @@ from code_analysis.models import (
     SymbolKind,
 )
 from code_analysis.parsers import get_parser, get_parser_for_extension, list_languages
+
+logger = structlog.get_logger()
 
 
 def _find_project_root() -> Path:
@@ -53,7 +57,7 @@ import code_analysis.parsers.python  # noqa: F401
 try:
     import code_analysis.parsers.csharp  # noqa: F401
 except ValueError:
-    pass  # tree-sitter not installed — C# parser unavailable
+    logger.warning("code_analysis.csharp_parser_unavailable", reason="tree-sitter not installed")
 
 from code_analysis.call_graph import build_call_graph  # noqa: E402
 

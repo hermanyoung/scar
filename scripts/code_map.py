@@ -1036,7 +1036,7 @@ def main() -> None:
     parser.add_argument(
         "--scope",
         nargs="*",
-        default=["src/security_review/", "scripts/"],
+        default=["src/", "scripts/"],
         help="Directories or files to include (default: src/security_review/ scripts/)",
     )
     parser.add_argument(
