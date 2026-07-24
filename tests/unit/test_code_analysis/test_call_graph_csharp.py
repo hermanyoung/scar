@@ -35,11 +35,17 @@ def _mock_success_run_tool_sync(output_path: Path, edges: list[dict]):
 
 @pytest.fixture
 def fake_tool_present(monkeypatch, tmp_path):
-    """Pretend the Roslyn tool binary exists, without needing a real build."""
+    """Pretend the Roslyn tool binary exists, without needing a real build.
+
+    Also redirects target_cache_dir() to tmp_path (SCAR never writes into
+    the repo under test, and tests must not touch SCAR's own real
+    var/cache/graphs/ either — plan 021 WP-D).
+    """
     monkeypatch.setattr(
         "code_analysis.call_graph_csharp._find_roslyn_tool",
         lambda: tmp_path / "fake-roslyn-callgraph.dll",
     )
+    monkeypatch.setattr("code_analysis.store.target_cache_dir", lambda target_root: tmp_path)
     return tmp_path
 
 
@@ -51,7 +57,7 @@ class TestBuildCsharpCallEdges:
 
     def test_parses_edges_with_correct_confidence_and_kind(self, fake_tool_present, monkeypatch):
         root = fake_tool_present
-        output_path = root / ".scar" / "roslyn-callgraph.json"
+        output_path = root / "roslyn-callgraph.json"
         monkeypatch.setattr(
             "security_review.tools.runner.run_tool_sync",
             _mock_success_run_tool_sync(output_path, FIXTURE_EDGES),
@@ -93,10 +99,9 @@ class TestBuildCsharpCallEdges:
         assert edges == []
 
     def test_invalid_json_returns_empty_list(self, fake_tool_present, monkeypatch):
-        output_path = fake_tool_present / ".scar" / "roslyn-callgraph.json"
+        output_path = fake_tool_present / "roslyn-callgraph.json"
 
         def _run(cmd, timeout_seconds, cwd=None):
-            output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text("not json{{{", encoding="utf-8")
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
         monkeypatch.setattr("security_review.tools.runner.run_tool_sync", _run)

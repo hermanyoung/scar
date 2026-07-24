@@ -41,8 +41,9 @@ def find_csharp_project(target_path: Path) -> Path | None:
 def _build_call_graph_if_available(state: PipelineState) -> tuple["CallGraph | None", "dict[str, float] | None"]:
     """Build the call graph from Pass 1's manifest. Returns (None, None) if unavailable.
 
-    Persists to .scar/graph.db in the target repo so unchanged files are not
-    re-parsed on the next run against the same target (Phase 2 incrementalism).
+    Persists to SCAR's own var/cache/graphs/<target-key>/graph.db so unchanged
+    files are not re-parsed on the next run against the same target (Phase 2
+    incrementalism); never writes into the target repo (plan 021 WP-D).
     Optional and best-effort -- run_holistic() degrades to keyword-only file
     selection when this returns (None, None), so a failure here never halts
     the pipeline (P6: fail loud for fatal errors, but this isn't one).
@@ -52,7 +53,7 @@ def _build_call_graph_if_available(state: PipelineState) -> tuple["CallGraph | N
     try:
         from code_analysis import analyze, compute_call_graph_pagerank
         from code_analysis.call_graph import build_call_graph_incremental
-        from code_analysis.store import GraphStore, init_target_gitignore
+        from code_analysis.store import GraphStore, target_cache_dir
 
         metrics = analyze(state.target_path, include_graph=True)
         if not metrics.modules:
@@ -65,8 +66,7 @@ def _build_call_graph_if_available(state: PipelineState) -> tuple["CallGraph | N
         ]
         csharp_solution = find_csharp_project(state.target_path)
 
-        init_target_gitignore(state.target_path)
-        with GraphStore(state.target_path / ".scar" / "graph.db") as store:
+        with GraphStore(target_cache_dir(state.target_path) / "graph.db") as store:
             graph = build_call_graph_incremental(
                 state.target_path, metrics.modules, store,
                 python_files=python_files or None,

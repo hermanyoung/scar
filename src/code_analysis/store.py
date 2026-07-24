@@ -2,18 +2,20 @@
 
 Enables cross-run incrementalism: unchanged files are not re-parsed, and
 findings are fingerprinted so a report can distinguish new/recurring/resolved
-across runs. The database lives at .scar/graph.db inside the TARGET repo
-being reviewed (not SCAR's own repo) -- see init_target_gitignore().
+across runs. The database lives under SCAR's own var/cache/graphs/ (never
+inside the target repo being reviewed) -- see target_cache_dir().
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
 
 import structlog
 
+from code_analysis import MODULE_ROOT
 from code_analysis.models import CallEdge, CallGraph, ReferenceEdge
 
 logger = structlog.get_logger()
@@ -100,13 +102,17 @@ CREATE INDEX IF NOT EXISTS ix_findings_file ON findings(file_path);
 """
 
 
-def init_target_gitignore(target_root: Path) -> None:
-    """Ensure .scar/ (the graph DB directory) is gitignored in the target repo."""
-    scar_dir = target_root / ".scar"
-    scar_dir.mkdir(parents=True, exist_ok=True)
-    gitignore = scar_dir / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text("*\n", encoding="utf-8")
+def target_cache_dir(target_root: Path) -> Path:
+    """Per-target cache directory under SCAR's own var/cache/graphs/.
+
+    SCAR never writes into the repository it scans (plan 021). The key is
+    derived from the resolved target path, so repeat runs against the same
+    target reuse the same incremental graph DB.
+    """
+    key = hashlib.sha256(str(Path(target_root).resolve()).encode("utf-8")).hexdigest()[:16]
+    cache_dir = MODULE_ROOT / "var" / "cache" / "graphs" / key
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
 class GraphStore:

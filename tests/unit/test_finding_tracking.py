@@ -21,25 +21,27 @@ SAMPLE_RESULTS = [
 RULE_CWE_MAP = {"opengrep.cwe-89.sql-injection": "CWE-89"}
 
 
-def test_records_new_finding_on_first_run(sast_pipeline_state, tmp_path: Path):
+def test_records_new_finding_on_first_run(sast_pipeline_state, tmp_path: Path, monkeypatch):
     state = sast_pipeline_state
+    monkeypatch.setattr("code_analysis.store.target_cache_dir", lambda target_root: tmp_path)
     fingerprint_and_track_findings(state, SAMPLE_RESULTS, RULE_CWE_MAP)
 
-    with GraphStore(tmp_path / ".scar" / "graph.db") as store:
+    with GraphStore(tmp_path / "graph.db") as store:
         row = store._conn.execute(
             "SELECT status, cwe_id, file_path FROM findings WHERE run_id=?", (state.run_id,),
         ).fetchone()
     assert row == ("open", "CWE-89", "app.py")
 
 
-def test_second_run_same_finding_is_recurring(sast_pipeline_state, tmp_path: Path):
+def test_second_run_same_finding_is_recurring(sast_pipeline_state, tmp_path: Path, monkeypatch):
     state = sast_pipeline_state
+    monkeypatch.setattr("code_analysis.store.target_cache_dir", lambda target_root: tmp_path)
     fingerprint_and_track_findings(state, SAMPLE_RESULTS, RULE_CWE_MAP)
 
     state.run_id = "second-run-id"
     fingerprint_and_track_findings(state, SAMPLE_RESULTS, RULE_CWE_MAP)
 
-    with GraphStore(tmp_path / ".scar" / "graph.db") as store:
+    with GraphStore(tmp_path / "graph.db") as store:
         first_seen = store._conn.execute(
             "SELECT first_seen_run FROM findings WHERE run_id=?", ("second-run-id",),
         ).fetchone()[0]
@@ -51,6 +53,6 @@ def test_never_raises_when_target_path_unwritable(sast_pipeline_state, monkeypat
 
     def _boom(*args, **kwargs):
         raise OSError("disk full")
-    monkeypatch.setattr("code_analysis.store.init_target_gitignore", _boom)
+    monkeypatch.setattr("code_analysis.store.target_cache_dir", _boom)
 
     fingerprint_and_track_findings(state, SAMPLE_RESULTS, RULE_CWE_MAP)  # must not raise

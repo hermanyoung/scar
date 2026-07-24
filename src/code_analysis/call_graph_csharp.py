@@ -42,6 +42,7 @@ def build_csharp_call_edges(root: Path, solution_or_project: Path) -> list[CallE
     warning (C# then gets keyword-only file selection, same as before this
     feature existed).
     """
+    from code_analysis.store import target_cache_dir
     from security_review.tools.runner import run_tool_sync
 
     tool_path = _find_roslyn_tool()
@@ -52,8 +53,7 @@ def build_csharp_call_edges(root: Path, solution_or_project: Path) -> list[CallE
         )
         return []
 
-    output_path = root / ".scar" / "roslyn-callgraph.json"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = target_cache_dir(root) / "roslyn-callgraph.json"
 
     result = run_tool_sync(
         ["dotnet", str(tool_path), str(solution_or_project), str(output_path)],

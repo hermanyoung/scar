@@ -36,7 +36,7 @@ logger = structlog.get_logger()
 def fingerprint_and_track_findings(
     state: PipelineState, all_results: list[dict], rule_cwe_map: dict[str, str],
 ) -> None:
-    """Record each finding's fingerprint in .scar/graph.db for cross-run tracking.
+    """Record each finding's fingerprint in SCAR's own cache graph.db for cross-run tracking.
 
     Optional and best-effort, mirroring _build_call_graph_if_available in
     pipeline.py: a failure here (e.g. an unwritable target directory) must
@@ -46,10 +46,9 @@ def fingerprint_and_track_findings(
     cross-run telemetry only, no impact on this run's coverage or report.
     """
     try:
-        from code_analysis.store import GraphStore, init_target_gitignore
+        from code_analysis.store import GraphStore, target_cache_dir
 
-        init_target_gitignore(state.target_path)
-        with GraphStore(state.target_path / ".scar" / "graph.db") as store:
+        with GraphStore(target_cache_dir(state.target_path) / "graph.db") as store:
             store.start_run(state.run_id, str(state.target_path), __version__)
             new_count = 0
             for result in all_results:

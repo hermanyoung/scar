@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from code_analysis import MODULE_ROOT
 from code_analysis.models import CallEdge, ReferenceEdge
-from code_analysis.store import GraphStore, init_target_gitignore
+from code_analysis.store import GraphStore, target_cache_dir
 
 
 @pytest.fixture
@@ -148,13 +149,21 @@ class TestFindingTracking:
         assert status == "new"
 
 
-class TestInitTargetGitignore:
-    def test_creates_scar_dir_with_gitignore(self, tmp_path: Path):
-        init_target_gitignore(tmp_path)
-        assert (tmp_path / ".scar").is_dir()
-        assert (tmp_path / ".scar" / ".gitignore").read_text() == "*\n"
+class TestTargetCacheDir:
+    def test_creates_cache_dir_under_var_cache_graphs(self, tmp_path: Path):
+        cache_dir = target_cache_dir(tmp_path)
+        assert cache_dir.is_dir()
+        assert cache_dir.is_relative_to(MODULE_ROOT / "var" / "cache" / "graphs")
+
+    def test_same_resolved_path_yields_same_dir(self, tmp_path: Path):
+        assert target_cache_dir(tmp_path) == target_cache_dir(tmp_path)
+
+    def test_different_paths_yield_different_dirs(self, tmp_path: Path):
+        other = tmp_path / "other"
+        other.mkdir()
+        assert target_cache_dir(tmp_path) != target_cache_dir(other)
 
     def test_idempotent(self, tmp_path: Path):
-        init_target_gitignore(tmp_path)
-        init_target_gitignore(tmp_path)  # must not raise
-        assert (tmp_path / ".scar" / ".gitignore").exists()
+        target_cache_dir(tmp_path)
+        target_cache_dir(tmp_path)  # must not raise
+        assert target_cache_dir(tmp_path).is_dir()
