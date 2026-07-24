@@ -337,28 +337,37 @@ def write_partial_sarif(state: PipelineState) -> Path:
 
 
 def _finding_to_sarif_result(finding) -> dict:
-    """Convert an LLM finding to a SARIF result."""
+    """Convert an LLM finding to a SARIF result.
+
+    file_path == "unknown" (the P13 sentinel from holistic._resolve_finding_path)
+    means the LLM's echoed path could not be resolved against the files it was
+    actually given — SARIF's result.locations is optional (P3), so we omit it
+    rather than fabricate a location, and flag it in properties instead.
+    """
     level = _severity_to_level(finding.severity)
     result = {
         "ruleId": finding.rule_id,
         "level": level,
         "message": {"text": f"{finding.title}: {finding.description}"},
-        "locations": [
+    }
+    if finding.file_path and finding.file_path != "unknown":
+        result["locations"] = [
             {
                 "physicalLocation": {
                     "artifactLocation": {"uri": finding.file_path},
                     "region": {"startLine": finding.line_number or 1},
                 }
             }
-        ],
-    }
+        ]
+    else:
+        result.setdefault("properties", {})["location_unresolved"] = True
 
     # Add CWE tag
     if finding.cwe_id:
         cwe_num = finding.cwe_id.replace("CWE-", "")
-        result["properties"] = {
-            "tags": [f"external/cwe/cwe-{int(cwe_num):03d}", "security"],
-        }
+        result.setdefault("properties", {})["tags"] = [
+            f"external/cwe/cwe-{int(cwe_num):03d}", "security",
+        ]
 
     # Propagate the Pass 6 verification verdict so _score_all_findings uses
     # it instead of the CONFIRMED default. Refuted findings stay in the
@@ -368,7 +377,7 @@ def _finding_to_sarif_result(finding) -> dict:
         result.setdefault("properties", {})["triage_verdict"] = verdict
 
     # Add end line for holistic findings
-    if hasattr(finding, "end_line") and finding.end_line:
+    if "locations" in result and hasattr(finding, "end_line") and finding.end_line:
         result["locations"][0]["physicalLocation"]["region"]["endLine"] = finding.end_line
 
     return result

@@ -94,6 +94,29 @@ def _classify_result(
     return _Outcome.COMPLETED, [], files_reviewed
 
 
+def _resolve_finding_path(raw: str, included: list[str]) -> str:
+    """Resolve an LLM-echoed file path against the files actually inlined in
+    the prompt (P13: validate echoed identifiers against known-correct data).
+
+    Exact match wins; else a unique suffix match; else a unique basename
+    match; else "unknown" (the established sentinel — verify.py maps it to
+    NEEDS_CONTEXT and merge omits the SARIF location).
+    """
+    if not raw or raw == "unknown":
+        return "unknown"
+    candidate = raw.lstrip("./")
+    if candidate in included:
+        return candidate
+    matches = [p for p in included if p.endswith("/" + candidate) or candidate.endswith("/" + p)]
+    if len(matches) == 1:
+        return matches[0]
+    basename = candidate.rsplit("/", 1)[-1]
+    matches = [p for p in included if p.rsplit("/", 1)[-1] == basename]
+    if len(matches) == 1:
+        return matches[0]
+    return "unknown"
+
+
 # -- Main pass ---------------------------------------------------------------
 
 
@@ -284,6 +307,15 @@ async def run_holistic(state: PipelineState) -> None:
                     count=1,
                 ))
 
+    unresolved = sum(1 for f in all_findings if f.file_path == "unknown")
+    if unresolved:
+        state.degrade(Degradation(
+            pass_name="holistic", kind="location_unresolved", subject="holistic",
+            detail=f"{unresolved} finding(s) had no resolvable file path — "
+                   f"emitted without a SARIF location; the verify pass treats them as NEEDS_CONTEXT",
+            count=unresolved,
+        ))
+
     if all_files_reviewed:
         state.holistic_result = HolisticReviewResult(
             findings=all_findings,
@@ -430,10 +462,26 @@ async def run_single_check(
             review_result = HolisticReviewResult(findings=[], files_reviewed=included)
 
     # P13: the check's CWE is known bookkeeping — never trust the LLM echo.
+    # Same for file paths: resolve them against the files we actually inlined.
     stamped_cwe = f"CWE-{check.cwe_id}"
-    review_result = review_result.model_copy(update={
-        "findings": [f.model_copy(update={"cwe_id": stamped_cwe}) for f in review_result.findings],
-    })
+    stamped_findings = []
+    for f in review_result.findings:
+        resolved_path = _resolve_finding_path(f.file_path, included)
+        if resolved_path == "unknown" and f.file_path not in ("", "unknown"):
+            logger.warning(
+                "holistic.finding_path_unresolved",
+                cwe_id=check.cwe_id,
+                raw=f.file_path,
+            )
+        elif resolved_path != f.file_path:
+            logger.debug(
+                "holistic.finding_path_resolved",
+                cwe_id=check.cwe_id,
+                raw=f.file_path,
+                resolved=resolved_path,
+            )
+        stamped_findings.append(f.model_copy(update={"cwe_id": stamped_cwe, "file_path": resolved_path}))
+    review_result = review_result.model_copy(update={"findings": stamped_findings})
 
     # parse_failed=True when the response was empty (never answered) or when
     # the LLM gave a non-empty response we could extract nothing from
