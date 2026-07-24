@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
 
 from code_quality.models import Finding, ToolResult
@@ -20,15 +19,15 @@ def _check_installed(command: str) -> bool:
 def _run_command(
     args: list[str], cwd: Path, timeout: int = 120,
 ) -> tuple[str, str, int]:
-    try:
-        result = subprocess.run(
-            args, cwd=cwd, capture_output=True, text=True, timeout=timeout,
-        )
-        return result.stdout, result.stderr, result.returncode
-    except subprocess.TimeoutExpired:
-        return "", f"Command timed out after {timeout}s", -1
-    except OSError as e:
-        return "", str(e), -1
+    """Run a tool. Routes through security_review.tools.runner.run_tool_sync —
+    the repo's single subprocess chokepoint (AGENTS.md rule 1) — rather than
+    calling subprocess directly. Lazy import: code_quality is also used
+    standalone (no dependency on security_review otherwise).
+    """
+    from security_review.tools.runner import run_tool_sync
+
+    proc = run_tool_sync(args, timeout_seconds=timeout, cwd=str(cwd))
+    return proc.stdout, proc.stderr, proc.returncode
 
 
 # -- Bandit ------------------------------------------------------------------

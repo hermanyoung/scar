@@ -55,7 +55,14 @@ def check_relative_imports(path: Path, rel: str) -> list[Violation]:
 
 
 def check_direct_logging(path: Path, rel: str) -> list[Violation]:
-    """001.2 — No direct import logging."""
+    """001.2 — No direct import logging.
+
+    Scoped to security_review only: get_logger() (security_review/logging.py)
+    is a security_review facility. code_analysis and code_quality are
+    standalone packages (usable without security_review) that call
+    structlog.get_logger() directly — the process-global structlog config
+    still applies to them, so this is intentional, not a gap.
+    """
     if not rel.startswith("src/security_review/"):
         return []
     if rel.endswith("logging.py"):
@@ -72,10 +79,15 @@ def check_direct_logging(path: Path, rel: str) -> list[Violation]:
 
 
 def check_init_minimal(path: Path, rel: str) -> list[Violation]:
-    """001.3 — __init__.py must be minimal."""
+    """001.3 — __init__.py must be minimal.
+
+    Scoped to all of src/ (plan 021 WP-H): the "no logic in __init__" rule
+    is a repo-wide standard, not a security_review peculiarity — code_analysis
+    and code_quality's init files must stay bootstrap-only too.
+    """
     if not rel.endswith("__init__.py"):
         return []
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     violations = []
     for i, line in enumerate(path.read_text().splitlines(), 1):
@@ -90,11 +102,16 @@ def check_init_minimal(path: Path, rel: str) -> list[Violation]:
 def check_subprocess_isolation(path: Path, rel: str) -> list[Violation]:
     """001.4 — Only tools/runner.py may call subprocess.
 
+    Scoped to all of src/ (plan 021 WP-H): code_analysis and code_quality
+    also route through tools/runner.run_tool_sync (see call_graph_csharp.py,
+    code_quality/tools.py) rather than calling subprocess directly — one
+    chokepoint for the whole repo, not just security_review.
+
     Exempt: cli/ commands are the user-facing entry-point layer (test-rule
     shells out to opengrep, test-providers shells out to a script). The rule
     protects pipeline internals, not CLI wiring.
     """
-    if not rel.startswith("src/security_review/"):
+    if not rel.startswith("src/"):
         return []
     if rel.endswith("tools/runner.py"):
         return []
@@ -182,7 +199,14 @@ def check_models_no_upward(path: Path, rel: str) -> list[Violation]:
 
 
 def check_file_size(path: Path, rel: str) -> list[Violation]:
-    """002.1 — Files must not exceed 1000 lines."""
+    """002.1 — Files must not exceed 1000 lines.
+
+    Scoped to src/ only, for now: scripts/ (e.g. setup.py, check_rules.py
+    itself) is exempt. This is a deliberate, temporary carve-out that
+    expires once scripts/code_intel.py and scripts/code_map.py are
+    consolidated into src/code_analysis (see plan 021 §0.4 item 1) — at
+    that point scripts/ should be brought into scope too.
+    """
     if not rel.startswith("src/"):
         return []
     lines = path.read_text().splitlines()
@@ -241,7 +265,12 @@ def check_hardcoded_urls(path: Path, rel: str) -> list[Violation]:
 
 
 def check_sync_blocking(path: Path, rel: str) -> list[Violation]:
-    """002.6 — No sync blocking calls in async context."""
+    """002.6 — No sync blocking calls in async context.
+
+    Scoped to security_review only: this guards the async pipeline
+    (passes/agents run under asyncio). code_analysis and code_quality are
+    synchronous, standalone packages with no event loop to block.
+    """
     if not rel.startswith("src/security_review/"):
         return []
     violations = []
@@ -362,6 +391,10 @@ def check_hardcoded_pricing(path: Path, rel: str) -> list[Violation]:
     type annotations like `input_per_token: float` in budget.py's
     ModelPricing schema are the correct place pricing is *typed*, not a
     hardcoded value, and must not trip this check.
+
+    Scoped to security_review only: pricing is exclusively an LLM-billing
+    concern, and the LLM layer lives entirely in security_review — code_analysis
+    and code_quality never call a priced model.
     """
     if not rel.startswith("src/security_review/"):
         return []
@@ -407,7 +440,12 @@ _MODEL_STRING_EXEMPT_FILES = (
 
 
 def check_hardcoded_model_strings(path: Path, rel: str) -> list[Violation]:
-    """003.7 — No hardcoded model strings; must come from config."""
+    """003.7 — No hardcoded model strings; must come from config.
+
+    Scoped to security_review only: model strings are an LLM-provider
+    concern, and the LLM layer lives entirely in security_review —
+    code_analysis and code_quality never construct a model.
+    """
     if not rel.startswith("src/security_review/"):
         return []
     if any(rel.endswith(f) for f in _MODEL_STRING_EXEMPT_FILES):
@@ -684,7 +722,7 @@ def get_staged_py_files() -> list[Path]:
 
 
 def get_all_source_files() -> list[Path]:
-    """Get all Python files under src/security_review/."""
+    """Get all Python files under src/ (security_review, code_analysis, code_quality)."""
     return sorted(SRC_DIR.rglob("*.py"))
 
 
