@@ -5,7 +5,13 @@ import pytest
 
 from security_review.config import load_config
 from security_review.errors import ConfigurationError
-from security_review.providers import build_model, resolve_model_name
+from security_review.providers import (
+    _get_limiter,
+    _provider_limiters,
+    build_model,
+    reset_provider_limiters,
+    resolve_model_name,
+)
 
 
 def test_resolve_alias_copilot():
@@ -34,3 +40,10 @@ def test_build_model_missing_model_raises():
     with pytest.raises(ConfigurationError) as exc_info:
         build_model("copilot", llm_config=cfg.llm)
     assert "provider:model" in str(exc_info.value)
+
+
+def test_reset_provider_limiters_empties_dict():
+    _get_limiter("test-provider", 3)
+    assert _provider_limiters
+    reset_provider_limiters()
+    assert _provider_limiters == {}

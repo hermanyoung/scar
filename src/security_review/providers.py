@@ -98,6 +98,12 @@ def _get_limiter(provider: str, max_concurrent: int):
     return _provider_limiters[key]
 
 
+def reset_provider_limiters() -> None:
+    """Test hook: clear the shared per-provider limiters (mirrors the
+    .cache_clear() convention in model_providers.py)."""
+    _provider_limiters.clear()
+
+
 def build_model(model_string: str, *, llm_config: "LLMConfig"):
     """Build a PydanticAI Model from a prefixed string.
 
@@ -125,9 +131,9 @@ def build_model(model_string: str, *, llm_config: "LLMConfig"):
     limiter = _get_limiter(provider, provider_cfg.max_concurrent)
 
     if provider == "openai":
-        from pydantic_ai.models.openai import OpenAIModel
+        from pydantic_ai.models.openai import OpenAIChatModel
         from security_review.model_providers import get_openai_provider, resolve_api_key
-        inner = OpenAIModel(model_name, provider=get_openai_provider(resolve_api_key("openai")))
+        inner = OpenAIChatModel(model_name, provider=get_openai_provider(resolve_api_key("openai")))
 
     elif provider == "anthropic":
         from pydantic_ai.models.anthropic import AnthropicModel

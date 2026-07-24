@@ -148,8 +148,8 @@ async def run_config_review(state: PipelineState) -> None:
                 agent_name="config_review",
                 batch_id="config-batch-000",
                 model_requested=model_string,
-                tokens_in=usage.request_tokens or 0,
-                tokens_out=usage.response_tokens or 0,
+                tokens_in=usage.input_tokens or 0,
+                tokens_out=usage.output_tokens or 0,
             )
 
             finding_count = len(config_result.findings) if config_result else 0

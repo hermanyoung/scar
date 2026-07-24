@@ -434,8 +434,8 @@ async def run_single_check(
         agent_name="holistic",
         batch_id=f"cwe-{check.cwe_id}",
         model_requested=model_string,
-        tokens_in=usage.request_tokens or 0,
-        tokens_out=usage.response_tokens or 0,
+        tokens_in=usage.input_tokens or 0,
+        tokens_out=usage.output_tokens or 0,
     )
 
     # Normalize output — always override files_reviewed with our known list (P13).

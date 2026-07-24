@@ -16,7 +16,9 @@ rustworkx>=0.15
 pyan3>=2.6              # Python call graph extraction (optional, degrades gracefully)
 
 # LLM orchestration (PydanticAI + providers)
-pydantic-ai[openai,anthropic]>=0.2.14
+# Pin to the tested version (ADR-001 discipline: floating LLM-stack deps have
+# bitten us before — A/B test before ANY upgrade).
+pydantic-ai[openai,anthropic]==1.63.0
 
 # Provider SDKs (pin to tested versions — breaking changes between minors)
 # NOTE: 0.3.0 has a regression — CWE-312/522 return 0 findings (prompt truncation suspected)

@@ -56,6 +56,6 @@ async def probe_provider(config: SecurityReviewConfig, cost_tracker: CostTracker
     cost_tracker.record(
         agent_name="preflight", batch_id="preflight-000",
         model_requested=model_string,
-        tokens_in=usage.request_tokens or 0, tokens_out=usage.response_tokens or 0,
+        tokens_in=usage.input_tokens or 0, tokens_out=usage.output_tokens or 0,
     )
     logger.info("preflight.ok", model=model_string)

@@ -50,8 +50,8 @@ def write_trace(
         "prompt": prompt,
         "messages": json.loads(result.all_messages_json()),
         "usage": {
-            "request_tokens": usage.request_tokens,
-            "response_tokens": usage.response_tokens,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
             "total_tokens": usage.total_tokens,
         },
     }

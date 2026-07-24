@@ -313,8 +313,8 @@ async def _run_verify_sample(
         agent_name="verify",
         batch_id=f"verify-{index:03d}",
         model_requested=model_string,
-        tokens_in=usage.request_tokens or 0,
-        tokens_out=usage.response_tokens or 0,
+        tokens_in=usage.input_tokens or 0,
+        tokens_out=usage.output_tokens or 0,
     )
 
     # Normalize output, always overriding identifiers with known-correct

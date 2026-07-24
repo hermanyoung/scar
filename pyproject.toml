@@ -19,14 +19,17 @@ dependencies = [
     "rustworkx>=0.15",
 ]
 
+# pydantic-ai is pinned exactly (==1.63.0) everywhere it's named below.
+# ADR-001 discipline: floating LLM-stack deps have bitten us before —
+# A/B test before ANY upgrade (see scripts/benchmark_cwes.py --ab-sdk).
 [project.optional-dependencies]
-openai = ["pydantic-ai[openai]>=0.2.14"]
-anthropic = ["pydantic-ai[anthropic]>=0.2.14"]
+openai = ["pydantic-ai[openai]==1.63.0"]
+anthropic = ["pydantic-ai[anthropic]==1.63.0"]
 copilot = ["github-copilot-sdk==0.2.2", "json-repair>=0.30"]
 claude = ["claude-agent-sdk>=0.1.63"]
 callgraph = ["pyan3>=2.6"]
 all = [
-    "pydantic-ai[openai,anthropic]>=0.2.14",
+    "pydantic-ai[openai,anthropic]==1.63.0",
     "bandit[sarif]>=1.9.4",
     "github-copilot-sdk==0.2.2",
     "claude-agent-sdk>=0.1.63",
@@ -39,7 +42,7 @@ sast = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
-    "pydantic-ai[openai,anthropic]>=0.2.14",
+    "pydantic-ai[openai,anthropic]==1.63.0",
     "bandit[sarif]>=1.9.4",
 ]
 
