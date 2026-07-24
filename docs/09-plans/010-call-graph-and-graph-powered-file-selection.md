@@ -1,7 +1,7 @@
 # Plan 010 — Call Graph and Graph-Powered File Selection
 
 **Date:** 2026-05-12
-**Status:** Draft
+**Status:** Implemented (merged to main 2026-07-17)
 **Research:** [007-PostgreSQL-ApacheAGE-pgvector.md](../98-research/007-PostgreSQL-ApacheAGE-pgvector.md)
 **Spec:** [001-security-code-review-module-spec.md](../98-research/001-security-code-review-module-spec.md)
 
@@ -1306,6 +1306,8 @@ class GraphStore:
 ```
 
 **Location of the database:** `.scar/graph.db` inside the target repository root. This keeps it alongside the codebase and gets `.gitignore`d.
+
+**Superseded by plan 021 WP-D:** the cache now lives in SCAR's own `var/cache/graphs/<target-key>/`; SCAR no longer writes into the scanned repository.
 
 Add to the target repo's `.gitignore` (or create `.scar/.gitignore`):
 ```

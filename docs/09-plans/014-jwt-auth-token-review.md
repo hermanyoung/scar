@@ -1,7 +1,7 @@
 # Plan 014 — JWT/Auth Token Implementation Review
 
 **Date:** 2026-05-17
-**Status:** Draft
+**Status:** Implemented (merged to main 2026-07-17)
 **Depends on:** None (taxonomy + rule additions)
 **Research:** [008-Pentest Toolchain Research](../98-research/008-The%202025–2026%20Command-Line%20Web%20Application%20Penetration%20Testing%20Toolchain%2C%20with%20LLM-Assisted%20Verification.md)
 

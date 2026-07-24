@@ -1,6 +1,43 @@
 # Changelog
 
 ## Unreleased
+- Review integrity & self-compliance (plan 021):
+  - **WP-A** — an empty/whitespace-only holistic LLM response is now classified
+    `parse_failed` (retried, then a `check_failed` degradation on exhaustion)
+    instead of silently counting as a clean "no findings" check.
+  - **WP-B** — holistic finding file paths are validated against the files
+    actually included in the prompt (exact match, then suffix/basename
+    fallback); unresolvable paths omit `locations` from the SARIF result and
+    set `properties.location_unresolved: true` instead of fabricating a
+    location, plus a `location_unresolved` degradation.
+  - **WP-C** — call-graph build failures now surface as an operator-visible
+    `call_graph_failed` degradation (previously a silent log line); the code
+    quality summary failing after a review run now also prints to stderr, not
+    just the log.
+  - **WP-D** — the call-graph/fingerprint SQLite cache moved out of the
+    scanned repository into SCAR's own `var/cache/graphs/<target-key>/`; SCAR
+    no longer creates a `.scar/` directory in any target it reviews. Old
+    `.scar/` directories in previously scanned targets are orphaned and safe
+    to delete manually.
+  - **WP-E** — `code_quality`'s Bandit/Radon tool runs now use the exact same
+    exclude set as the AST-based scoring dimensions, so a file measured by
+    one is never silently skipped by the other.
+  - **WP-F** — consolidated on a single PQI implementation: the pre-commit
+    hook now calls `python scar.py quality` instead of the standalone
+    `scripts/code_quality.py`, which is deleted.
+  - **WP-G** — `setup.py`'s auto-fix path runs commands without `shell=True`;
+    fix commands that are genuinely shell scripts (exports, multi-step
+    instructions) are now surfaced as manual steps instead of being executed
+    unsafely.
+  - **WP-H** — the subprocess-isolation and init-minimal rule checks now cover
+    all of `src/` (previously `security_review/`-only), closing the gap that
+    let `code_quality/tools.py` call `subprocess.run` directly and
+    `code_analysis/__init__.py` carry a full `analyze()` implementation; both
+    are now routed/split accordingly. Remaining deliberately-scoped rules are
+    documented with their reasons.
+  - **WP-I** — `pydantic-ai` pinned to the exact tested version (`==1.63.0`,
+    was a floating `>=0.2.14`); deprecated `usage.request_tokens`/
+    `response_tokens` and `OpenAIModel` APIs migrated to their replacements.
 - Adversarial verification & pipeline resilience (plan 020, Phases 1-3):
   - **Pass 6 "verify"** (full mode is now 7 passes; merge is Pass 7): every
     holistic finding (config-review findings opt-in) gets an independent

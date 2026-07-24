@@ -24,6 +24,14 @@ Security code review for C# (.NET) and Python codebases. Combines deterministic 
 
 ## Setup
 
+### Quickstart
+
+1. `git clone` the repo, then `cd` into it.
+2. `python setup.py --fix` — installs everything it can, no prompts.
+3. Authenticate the default `copilot` provider: `gh auth login` (GitHub Copilot OAuth, $0 via subscription).
+4. `python scar.py health-check` — confirms tools + auth are ready.
+5. `python scar.py review --target <repo> --mode full` — run a complete review.
+
 The `setup.py` script checks your OS, Python version, all Python packages, external SAST tools, project structure, GitHub Copilot authentication, and LLM provider availability. It is idempotent — run it as often as you like.
 
 ```bash
@@ -43,12 +51,13 @@ python setup.py --check
 |----------|---------|
 | OS | macOS / Linux / Windows detection, platform-specific install commands |
 | Python | Requires >= 3.11 |
-| Editable install | `pip install -e '.[all]'` |
-| 12 Python packages | pydantic, pydantic-ai, structlog, rich, tree-sitter, bandit, pytest, etc. |
-| 8 external tools | opengrep, betterleaks, hadolint, trivy, pip-audit, dotnet, security-scan, copilot SDK |
+| 13 Python packages | pydantic, pydantic-settings, pyyaml, click, structlog, rich, tree-sitter, tree-sitter-c-sharp, pydantic-ai, json-repair, bandit, pytest, pytest-asyncio |
+| 8 external tools | OpenGrep, Betterleaks, Hadolint, Trivy, .NET SDK, GitHub Copilot SDK, Claude Agent SDK, Codex CLI |
 | Project structure | Config files, prompts, taxonomy, rules directories |
 | GitHub Copilot auth | `gh auth status` + copilot extension |
 | LLM provider config | Model alias resolution, API keys or Copilot SDK |
+
+No editable install is needed — run directly with `python scar.py` (see `setup.py`'s `check_editable_install`).
 
 ### Manual install (if you prefer)
 
@@ -265,6 +274,10 @@ When a full security review is run, the quality Security dimension is automatica
 
 Structural analysis scripts for codebase understanding and security prioritisation.
 
+**Graph cache:** Call graphs and file-cache fingerprints are persisted per-target under SCAR's own `var/cache/graphs/<target-key>/graph.db` (`<target-key>` is a hash of the resolved target path). SCAR never writes into the repository it scans — no `.scar/` directory is created in the target. If a previously scanned repo has an old `.scar/` directory from before this change, it is orphaned and safe to delete manually.
+
+If the call graph fails to build (e.g. a `pyan3` internal error), the pipeline does not fail — it records a `call_graph_failed` degradation and falls back to keyword-only file selection for the holistic pass. Degradations are always visible in every report format.
+
 ```bash
 # Generate a structural code map (Markdown)
 python scripts/code_map.py
@@ -418,7 +431,16 @@ python scar.py reports --show d8e9f8db
 
 # Compare findings between two runs
 python scar.py reports --compare d2120108 d8e9f8db
+
+# Delete run directories that never produced a security-report.md
+# (crashed/interrupted before Pass 7 — Merge). Prompts for confirmation.
+python scar.py reports --prune-incomplete
+
+# Same, but skip the confirmation prompt (for scripting)
+python scar.py reports --prune-incomplete --yes
 ```
+
+`--prune-incomplete` is recovery for runs that crashed or were interrupted before a report was ever written — it never touches a run directory that has a `security-report.md`, so runs salvaged mid-pipeline (see "Exit codes" above) are always kept.
 
 ---
 

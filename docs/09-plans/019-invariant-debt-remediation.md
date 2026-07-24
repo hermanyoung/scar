@@ -1,6 +1,6 @@
 # Plan 019 — Invariant Debt Remediation
 
-**Status:** Ready for implementation — **blocked on Plan 018 being merged first**
+**Status:** Implemented (merged to main 2026-07-14)
 **Date:** 2026-07-06
 **Source:** Verified plan-backlog audit of 2026-07-05/06 (plans 001–017 checked deliverable-by-deliverable against the code) + PRR follow-ups
 **Depends on:** `docs/09-plans/018-operational-readiness-remediation.md` — **hard dependency**, see §0.3
