@@ -26,6 +26,7 @@ DegradationKind = Literal[
     "run_aborted",         # pipeline aborted mid-run — artifacts are partial (salvage)
     "pass_failed",         # an entire pass raised uncaught — subsequent passes were skipped
     "location_unresolved",  # LLM finding had no resolvable file path — SARIF result has no location
+    "call_graph_failed",   # call graph build failed — holistic file selection fell back to keyword-only
 ]
 
 

@@ -41,6 +41,9 @@ def fingerprint_and_track_findings(
     Optional and best-effort, mirroring _build_call_graph_if_available in
     pipeline.py: a failure here (e.g. an unwritable target directory) must
     never break report generation, so any exception is logged and swallowed.
+
+    Reviewed 2026-07-25 (plan 021): deliberately NOT a Degradation —
+    cross-run telemetry only, no impact on this run's coverage or report.
     """
     try:
         from code_analysis.store import GraphStore, init_target_gitignore

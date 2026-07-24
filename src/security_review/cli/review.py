@@ -358,6 +358,9 @@ def review(target, mode, provider, budget, output, summary, report_format, confi
             except Exception as quality_err:
                 logger.warning("quality.scoring_failed", error=str(quality_err),
                                error_type=type(quality_err).__name__)
+                click.echo(click.style(
+                    "  (code quality summary unavailable — see log for details)",
+                    fg="yellow"), err=True)
         else:
             click.echo(f"Report: {sarif_path}")
             if state.degradations:

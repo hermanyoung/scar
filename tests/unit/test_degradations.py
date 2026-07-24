@@ -43,6 +43,17 @@ def test_degradation_rejects_invalid_kind():
         Degradation(pass_name="sast", kind="not_a_real_kind", subject="bandit", detail="x")
 
 
+def test_degradation_call_graph_failed_valid_and_renders():
+    """Plan 021 WP-C: call_graph_failed is a valid kind and renders cleanly."""
+    d = Degradation(
+        pass_name="pipeline", kind="call_graph_failed", subject="call_graph",
+        detail="call graph unavailable (KeyError: pyan3 internal) — "
+               "holistic file selection degraded to keyword-only",
+    )
+    lines = render_degradations_md([d])
+    assert any("[pipeline] call_graph_failed" in line for line in lines)
+
+
 # -- PipelineState.degrade ----------------------------------------------------
 
 

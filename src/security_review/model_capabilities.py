@@ -35,6 +35,10 @@ logger = structlog.get_logger()
 
 # ---------------------------------------------------------------------------
 # Format instructions injected for prompted providers (copilot:, claude:)
+#
+# These format blocks are output contracts coupled to output_parser.py's
+# regexes — deliberately code, not config/prompts/ (P5 exemption, plan 021):
+# editing them without updating the parser silently breaks finding extraction.
 # ---------------------------------------------------------------------------
 
 TRIAGE_FORMAT_MARKDOWN = """\

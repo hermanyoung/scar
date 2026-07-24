@@ -82,7 +82,17 @@ def _build_call_graph_if_available(state: PipelineState) -> tuple["CallGraph | N
         )
         return graph, pagerank
     except Exception as e:
-        logger.warning("pipeline.call_graph_failed", error=str(e))
+        logger.warning(
+            "pipeline.call_graph_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        state.degrade(Degradation(
+            pass_name="pipeline", kind="call_graph_failed", subject="call_graph",
+            detail=f"call graph unavailable ({type(e).__name__}: {str(e)[:120]}) — "
+                   f"holistic file selection degraded to keyword-only",
+            count=0,
+        ))
         return None, None
 
 
