@@ -55,6 +55,10 @@ class BanditRunner:
             args.append(str(root))
 
         if exclude:
+            # Bandit's --exclude only accepts directory paths, not glob
+            # patterns. Non-directory entries (e.g. "*.g.cs" — a C# generated-
+            # file pattern that's irrelevant to this Python-only scanner) are
+            # silently dropped rather than passed through and rejected.
             bandit_excludes = []
             for exc in exclude:
                 exc_path = root / exc.rstrip("/")

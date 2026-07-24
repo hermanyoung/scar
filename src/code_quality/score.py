@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from code_analysis import analyze
+from code_analysis.collect import EXCLUDE_DEFAULTS
 from code_quality.models import DimensionScore, PQIResult, QualityBand
 from code_quality.scoring import (
     compute_pqi,
@@ -45,10 +46,17 @@ def score_project(
     """
     languages = [language] if language else None
 
+    # Resolve exclude ONCE and pass the same effective list to analyze() and
+    # run_tools(): analyze()->collect_files applies EXCLUDE_DEFAULTS when
+    # exclude is None, but the tool runners forward exclude=None as "no
+    # excludes at all" — without this, bandit/radon score files the AST
+    # dimensions never measured (plan 021 WP-E).
+    effective_exclude = list(exclude) if exclude is not None else list(EXCLUDE_DEFAULTS)
+
     metrics = analyze(
         target,
         scope=scope,
-        exclude=exclude,
+        exclude=effective_exclude,
         languages=languages,
         include_graph=include_graph,
     )
@@ -67,7 +75,7 @@ def score_project(
 
     if tools is None:
         tools = detect_available_tools()
-    tool_results = run_tools(tools, target, scope, exclude) if tools else {}
+    tool_results = run_tools(tools, target, scope, effective_exclude) if tools else {}
 
     dimensions = {
         "maintainability": score_maintainability(metrics, tool_results),

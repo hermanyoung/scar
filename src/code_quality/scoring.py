@@ -137,6 +137,16 @@ def score_maintainability(
 def score_security(
     metrics: ProjectMetrics, tools: dict[str, ToolResult] | None = None,
 ) -> DimensionScore:
+    """Score the security dimension from AST-detected unsafe calls + bandit findings.
+
+    Intentional asymmetry (plan 021 WP-E): `_source_files(metrics)` excludes
+    test files from the AST unsafe-call counts below, but bandit (run over
+    the same `scope`/`exclude` as the AST pass — see score_project) still
+    scans test files, minus the B101 assert-noise filter (tools.py). Bandit
+    findings in test code are real signal — e.g. a hardcoded credential in a
+    test fixture is still a hardcoded credential — so they are not filtered
+    out a second time here.
+    """
     tools = tools or {}
     source = _source_files(metrics)
     if not source:
