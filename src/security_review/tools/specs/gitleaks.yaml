@@ -9,7 +9,7 @@ default_args:
   config_path: "config/rules/gitleaks/.gitleaks.toml"
 output_capture: file
 redact_output: true
-timeout_seconds: 120
+timeout_seconds: 300
 target_type: directory
 applies_to: []
 cwe_source: none

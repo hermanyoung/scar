@@ -8,7 +8,7 @@ sarif_native: false
 success_exit_codes: [0, 1]
 arg_template: ["{binary}", "-r", "{target_path}", "-f", "json", "-o", "{output_path}", "--desc"]
 output_capture: file
-timeout_seconds: 120
+timeout_seconds: 300
 target_type: file
 applies_to: ["requirements*.txt"]
 cwe_source: mapping_file

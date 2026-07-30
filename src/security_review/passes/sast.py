@@ -27,7 +27,6 @@ from security_review.tools.registry import (
     load_tool_specs,
     resolve_tools_for_manifest,
 )
-from security_review.passes.inventory import path_matches_filters
 from security_review.passes.state import PipelineState
 from security_review.tools.runner import run_tool
 
@@ -125,16 +124,13 @@ async def run_sast(state: PipelineState) -> None:
     # Normalise severity levels across tools (Bandit, OpenGrep, betterleaks all differ)
     normalise_sarif_levels(merged)
 
-    # Apply user exclude/include filters to SAST results too. Directory-scanning
-    # tools (bandit, opengrep, trivy) are invoked against the raw target path
-    # and never go through the inventory manifest that exclude/include
-    # otherwise gates for LLM passes — without this, --exclude/--include would
-    # silently have no effect in --mode sast (WP9).
-    _filter_excluded_results(
-        merged,
-        tuple(state.config.review.exclude),
-        tuple(state.config.review.include),
-    )
+    # Directory-scanning tools run against the raw target and may report
+    # generated/dependency files that inventory deliberately excluded. Keep
+    # only findings whose normalized URI is in the canonical manifest so
+    # deterministic and semantic passes review exactly one file set.
+    dropped = _filter_results_to_manifest(merged, set(file_paths))
+    if dropped:
+        logger.info("sast.out_of_manifest_results_dropped", count=dropped)
 
     # Redact secrets from betterleaks/gitleaks output
     merged = redact_sarif(merged)
@@ -370,18 +366,14 @@ def _normalize_sarif_uris(sarif: dict, target_root: str) -> None:
                     artifact["uri"] = normalize_uri(artifact["uri"], target_root)
 
 
-def _filter_excluded_results(
-    sarif: dict, exclude: tuple[str, ...], include: tuple[str, ...],
-) -> None:
-    """Drop SARIF results whose file URI is excluded, or not matched by include.
+def _filter_results_to_manifest(sarif: dict, manifest_paths: set[str]) -> int:
+    """Keep only results located in the canonical inventory manifest.
 
-    Reuses passes/inventory.py's path_matches_filters (fnmatch on the relative
-    POSIX URI, already normalized by _normalize_sarif_uris) so --exclude/
-    --include apply identically across the pipeline.
+    Returns the number of out-of-scope results removed. User include/exclude
+    filters and built-in directory exclusions have already shaped the
+    manifest, so membership is the single source of truth.
     """
-    if not exclude and not include:
-        return
-
+    dropped = 0
     for run in sarif.get("runs", []):
         kept = []
         for result in run.get("results", []):
@@ -389,9 +381,12 @@ def _filter_excluded_results(
             uri = ""
             if locs:
                 uri = locs[0].get("physicalLocation", {}).get("artifactLocation", {}).get("uri", "")
-            if path_matches_filters(uri, exclude, include):
+            if uri in manifest_paths:
                 kept.append(result)
+            else:
+                dropped += 1
         run["results"] = kept
+    return dropped
 
 
 def _prescore_for_triage_filter(sarif: dict, exposure_index: dict[str, float]) -> None:

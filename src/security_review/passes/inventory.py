@@ -17,7 +17,7 @@ logger = structlog.get_logger()
 EXCLUDE_DIRS = {
     "obj", "bin", "Migrations", "__pycache__", ".venv", "venv",
     "node_modules", ".git", ".vs", ".idea", "dist", "build",
-    ".mypy_cache", ".pytest_cache", ".tox", "eggs",
+    ".mypy_cache", ".pytest_cache", ".tox", "eggs", "worktrees",
 }
 
 # File patterns to exclude

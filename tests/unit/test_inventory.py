@@ -33,6 +33,18 @@ def test_walk_files_excludes_node_modules(tmp_path: Path):
     assert "index.js" not in names
 
 
+def test_walk_files_excludes_generated_worktrees(tmp_path: Path):
+    """Generated agent worktrees are duplicated repositories, not source."""
+    generated = tmp_path / "var" / "worktrees" / "run-1" / "workspace"
+    generated.mkdir(parents=True)
+    (generated / "duplicate.py").write_text("print('duplicate')")
+    (tmp_path / "app.py").write_text("print('primary')")
+
+    files = _walk_files(tmp_path, max_size=1_048_576)
+    names = {f.name for f in files}
+    assert names == {"app.py"}
+
+
 def test_walk_files_excludes_bin_obj(tmp_path: Path):
     """I-01: excludes obj/ and bin/"""
     (tmp_path / "obj" / "Debug").mkdir(parents=True)
