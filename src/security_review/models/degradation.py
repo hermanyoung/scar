@@ -27,6 +27,7 @@ DegradationKind = Literal[
     "pass_failed",         # an entire pass raised uncaught — subsequent passes were skipped
     "location_unresolved",  # LLM finding had no resolvable file path — SARIF result has no location
     "call_graph_failed",   # call graph build failed — holistic file selection fell back to keyword-only
+    "sensitive_file_omitted",  # local secret file withheld from all LLM context
 ]
 
 

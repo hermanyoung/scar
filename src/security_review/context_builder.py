@@ -17,9 +17,27 @@ import structlog
 
 logger = structlog.get_logger()
 
+_SAFE_ENV_TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist")
+
+
+def is_sensitive_env_path(file_path: str) -> bool:
+    """True for environment files that may contain live secrets.
+
+    Templates remain reviewable, but live ``.env`` variants are never read
+    into LLM context. Deterministic secret scanners still see these files.
+    """
+    name = file_path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if any(name.endswith(suffix) for suffix in _SAFE_ENV_TEMPLATE_SUFFIXES):
+        return False
+    return name == ".env" or name.startswith(".env.") or name.endswith(".env")
+
 
 def read_file_content(target_path: Path, file_path: str) -> str | None:
     """Read a file relative to target_path. Returns content or None on failure."""
+    if is_sensitive_env_path(file_path):
+        logger.warning("context.sensitive_file_blocked", file_path=file_path)
+        return None
+
     full_path = target_path / file_path
     try:
         return full_path.read_text(encoding="utf-8", errors="replace")

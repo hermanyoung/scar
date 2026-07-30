@@ -9,7 +9,7 @@ from pydantic_ai import UsageLimits
 
 from security_review.agents.config_review.agent import build_config_review_agent
 from security_review.agents.deps import SecurityReviewDeps
-from security_review.context_builder import inline_files
+from security_review.context_builder import inline_files, is_sensitive_env_path
 from security_review.errors import is_context_overflow_error, is_fatal_error
 from security_review.model_capabilities import supports_native_json, CONFIG_FORMAT_JSON
 from security_review.models.config_review import ConfigReviewResult
@@ -45,10 +45,30 @@ async def run_config_review(state: PipelineState) -> None:
         return
 
     # Find config files
-    config_files = [
+    config_candidates = [
         f for f in state.manifest.files
         if f.language == "config" or _is_config_file(f.path)
     ]
+    sensitive_files = [f for f in config_candidates if is_sensitive_env_path(f.path)]
+    config_files = [f for f in config_candidates if not is_sensitive_env_path(f.path)]
+
+    if sensitive_files:
+        sensitive_paths = [f.path for f in sensitive_files]
+        logger.warning(
+            "config_review.sensitive_files_omitted",
+            count=len(sensitive_paths),
+            files=sensitive_paths,
+        )
+        state.degrade(Degradation(
+            pass_name="config_review",
+            kind="sensitive_file_omitted",
+            subject="config_review",
+            detail=f"{len(sensitive_paths)} sensitive environment file(s) were NOT sent "
+                   f"to the LLM; deterministic secret scanning still applies: "
+                   f"{', '.join(sensitive_paths[:5])}"
+                   f"{'…' if len(sensitive_paths) > 5 else ''}",
+            count=len(sensitive_paths),
+        ))
 
     if not config_files:
         logger.info("config_review.skipped", reason="No config files in manifest")

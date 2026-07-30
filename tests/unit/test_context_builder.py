@@ -9,6 +9,7 @@ from security_review.context_builder import (
     format_context_window,
     format_full_file,
     inline_files,
+    is_sensitive_env_path,
     read_file_content,
 )
 
@@ -34,6 +35,37 @@ def test_read_file_content_subdirectory(tmp_path: Path):
     (sub / "app.py").write_text("x = 1", encoding="utf-8")
     content = read_file_content(tmp_path, "src/app.py")
     assert content == "x = 1"
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    ["config/.env", ".env.local", "config/production.env", r"config\.env.production"],
+)
+def test_read_file_content_blocks_sensitive_environment_files(
+    tmp_path: Path, file_path: str,
+):
+    relative = file_path.replace("\\", "/")
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("API_KEY=must-not-enter-a-prompt", encoding="utf-8")
+
+    assert is_sensitive_env_path(file_path)
+    assert read_file_content(tmp_path, file_path) is None
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    ["config/.env.example", ".env.sample", "deploy/prod.env.template", ".env.dist"],
+)
+def test_read_file_content_allows_environment_templates(
+    tmp_path: Path, file_path: str,
+):
+    target = tmp_path / file_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("API_KEY=", encoding="utf-8")
+
+    assert not is_sensitive_env_path(file_path)
+    assert read_file_content(tmp_path, file_path) == "API_KEY="
 
 
 # ---------------------------------------------------------------------------
