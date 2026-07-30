@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 import click
 
@@ -125,14 +127,28 @@ def test_cwe(cwe, target, provider, trace, temperature, compare_selection, verbo
 
     async def _run():
         from security_review.providers import build_model
+        from security_review.model_capabilities import supports_native_json
+        from security_review.model_settings import build_model_settings
         from security_review.passes.state import PipelineState
         from security_review.passes.holistic import run_single_check
         from security_review.sarif.merger import merge_sarif
         from security_review.models.inventory import FileManifest
 
         model = build_model(model_string, llm_config=cfg.llm)
+        run_cfg = cfg
+        if trace:
+            # output_dir derives from review.output_sarif, which defaults to a
+            # bare filename — left alone that puts traces/ in the project root.
+            # Give the run its own var/output directory, as `review` does.
+            run_dir = f"var/output/{datetime.now().strftime('%Y-%m-%d')}-cwe-{cwe_num}-{uuid4().hex[:8]}"
+            run_cfg = cfg.model_copy(update={
+                "review": cfg.review.model_copy(
+                    update={"output_sarif": f"{run_dir}/security-report.sarif"},
+                ),
+            })
+
         state = PipelineState(
-            config=cfg,
+            config=run_cfg,
             target_path=target_path,
             work_dir=PROJECT_ROOT,
             trace_enabled=trace,
@@ -145,12 +161,18 @@ def test_cwe(cwe, target, provider, trace, temperature, compare_selection, verbo
         )
         state.sast_sarif = merge_sarif([])
 
+        # Mirror run_holistic exactly. Without these two the benchmark measures
+        # a configuration nobody runs: no reasoning effort or prompt caching,
+        # and prompted markdown parsing even for models that enforce the schema
+        # natively — so a golden score would not describe the real pipeline.
         result = await run_single_check(
             check=check,
             file_paths=file_paths,
             state=state,
             model=model,
             model_string=model_string,
+            model_settings=build_model_settings(model_string, run_cfg.llm),
+            native_json=supports_native_json(model),
         )
 
         if result is None:
