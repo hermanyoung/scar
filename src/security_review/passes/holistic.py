@@ -483,11 +483,16 @@ async def run_single_check(
         stamped_findings.append(f.model_copy(update={"cwe_id": stamped_cwe, "file_path": resolved_path}))
     review_result = review_result.model_copy(update={"findings": stamped_findings})
 
-    # parse_failed=True when the response was empty (never answered) or when
-    # the LLM gave a non-empty response we could extract nothing from
-    # (review_notes is set by the parser exactly in that second case).
+    # parse_failed=True when the response was empty (never answered) or, in
+    # prompted mode, when the LLM gave a non-empty response we could extract
+    # nothing from. review_notes is an in-band sentinel the parser sets for that
+    # second case; under native JSON the field is LLM-populated and carries no
+    # such meaning, so a clean check that fills it would otherwise be retried
+    # and then reported as "NOT assessed".
     parse_failed = empty_response or (
-        not review_result.findings and review_result.review_notes is not None
+        not native_json
+        and not review_result.findings
+        and review_result.review_notes is not None
     )
 
     if state.ledger is not None:

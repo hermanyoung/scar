@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.profiles import ModelProfile
 
@@ -41,14 +41,17 @@ def _make_state(tmp_path: Path) -> PipelineState:
     return state
 
 
-async def _run_with_response(monkeypatch, state: PipelineState, respond, *, cwe_id: str = "999") -> None:
-    """Wire run_holistic() to a single CWE check served by `respond` (prompted-mode profile).
+async def _run_with_response(monkeypatch, state: PipelineState, respond, *,
+                             cwe_id: str = "999", native: bool = False) -> None:
+    """Wire run_holistic() to a single CWE check served by `respond`.
 
-    Mirrors the FunctionModel/monkeypatch pattern of test_overflow.py.
+    Mirrors the FunctionModel/monkeypatch pattern of test_overflow.py. `native`
+    selects a JSON-schema-capable profile (the foundry/openai path) instead of
+    the prompted profile used by copilot/claude.
     """
     prompted_model = FunctionModel(respond, profile=ModelProfile(
-        supports_json_schema_output=False,
-        default_structured_output_mode="prompted",
+        supports_json_schema_output=native,
+        default_structured_output_mode="tool" if native else "prompted",
     ))
     monkeypatch.setattr(
         "security_review.passes.holistic.load_cwe_checks", lambda: [_make_check(cwe_id)],
@@ -94,6 +97,35 @@ async def test_no_findings_answer_still_completes_clean(tmp_path: Path, monkeypa
     assert [d for d in state.degradations if d.kind in ("check_failed", "parse_failed")] == []
     assert state.holistic_result is not None
     assert state.holistic_result.findings == []
+    assert state.holistic_result.files_reviewed == ["app.py"]
+
+
+async def test_native_json_clean_check_with_notes_is_not_a_parse_failure(
+    tmp_path: Path, monkeypatch,
+):
+    """Native mode: review_notes is LLM-authored prose, not the parser's sentinel.
+
+    In prompted mode output_parser.py sets review_notes to signal "responded but
+    unparseable". Under native JSON the model fills the same field on a
+    legitimately clean check, so treating it as a sentinel there marks assessed
+    checks as "NOT assessed" — which is exactly what a real Foundry run hit.
+    """
+    def _respond(messages, info):
+        tool = info.output_tools[0]
+        return ModelResponse(parts=[ToolCallPart(
+            tool_name=tool.name,
+            args={
+                "findings": [],
+                "files_reviewed": ["app.py"],
+                "review_notes": "Reviewed app.py end to end; no instances of this weakness.",
+            },
+        )])
+
+    state = _make_state(tmp_path)
+    await _run_with_response(monkeypatch, state, _respond, native=True)
+
+    assert [d for d in state.degradations if d.kind in ("check_failed", "parse_failed")] == []
+    assert state.holistic_result is not None
     assert state.holistic_result.files_reviewed == ["app.py"]
 
 
