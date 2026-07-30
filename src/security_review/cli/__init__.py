@@ -23,3 +23,4 @@ import security_review.cli.test_cwe  # noqa: F401, E402
 import security_review.cli.test_providers  # noqa: F401, E402
 import security_review.cli.eval_cmd  # noqa: F401, E402
 import security_review.cli.quality_cmd  # noqa: F401, E402
+import security_review.cli.models_cmd  # noqa: F401, E402

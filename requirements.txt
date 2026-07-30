@@ -20,6 +20,11 @@ pyan3>=2.6              # Python call graph extraction (optional, degrades grace
 # bitten us before — A/B test before ANY upgrade).
 pydantic-ai[openai,anthropic]==1.63.0
 
+# Azure AI Foundry auth. The Foundry resource has disableLocalAuth=true, so
+# there is no API key to resolve — inference authenticates with Entra ID
+# bearer tokens sourced from DefaultAzureCredential.
+azure-identity>=1.19
+
 # Provider SDKs (pin to tested versions — breaking changes between minors)
 # NOTE: 0.3.0 has a regression — CWE-312/522 return 0 findings (prompt truncation suspected)
 github-copilot-sdk==0.2.2

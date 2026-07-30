@@ -43,3 +43,11 @@ providers:
   copilot: {}
   openai: {}
   codex: {}
+  # Azure Foundry addresses *deployments*, not catalogue model IDs. These
+  # overrides point the shared aliases at what is actually deployed on the
+  # resource, so `foundry:gpt` resolves to a deployment that exists rather than
+  # failing at call time against a model nobody provisioned. Run
+  # `scar.py list-models --foundry` after any deployment change.
+  foundry:
+    "gpt-5.5": "gpt-5.4"          # 'gpt' alias -> newest deployed chat model
+    "gpt-5.4-mini": "gpt-5-mini"  # 'gpt-mini' alias -> deployed mini

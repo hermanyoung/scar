@@ -512,6 +512,32 @@ anthropic:claude-sonnet  ->  anthropic:claude-sonnet-4-6  (dashes for Anthropic 
 openai:gpt               ->  openai:gpt-5.5
 ```
 
+`python scar.py list-models` prints the live version of this table — every provider, its alias resolutions, and the per-1M-token rates — read straight from `config/models.yaml` and `config/pricing.yaml`, with the models named in `config/settings/security_review.yaml` marked. It makes no network or LLM calls.
+
+```bash
+python scar.py list-models                       # everything SCAR can bill and run
+python scar.py list-models --provider anthropic  # one provider
+python scar.py list-models --all                 # include models with no pricing entry
+python scar.py list-models --json                # machine-readable
+```
+
+Models are only listed by default if `config/pricing.yaml` has an entry for them, because cost tracking rejects a model it cannot price. `--all` reveals the rest.
+
+### Azure AI Foundry models
+
+`--foundry` switches the same command from the local registry to a live query against the Azure AI Foundry resource named in the `foundry:` block of `config/settings/security_review.yaml`. It reports what is **published** on that resource — the models callable right now — and marks which of them SCAR can actually route to, meaning those with a `foundry:<model>` entry in `config/pricing.yaml`.
+
+```bash
+python scar.py list-models --foundry                                  # published on the resource
+python scar.py list-models --foundry --catalog                        # + everything the region offers
+python scar.py list-models --foundry --catalog --publisher Anthropic   # narrow the catalog
+python scar.py list-models --foundry --json                            # machine-readable
+```
+
+The catalog view distinguishes the two hosting variants Anthropic models ship in on Foundry — `hosted-on=anthropic` (billed through Anthropic, needs commercial declarations at deployment) versus `hosted-on=azure` (first-party, usually the default version) — and shows each model's inference retirement date.
+
+Catalog presence is not permission: an approved-publisher Azure Policy can still refuse a deployment. Authentication comes from your `az login` session, so the `foundry:` block holds resource coordinates only and never credentials. `az` is invoked through `tools/runner.run_tool_sync`, the repository's single subprocess chokepoint.
+
 ### Pricing
 
 LLM pricing is externalised to `config/pricing.yaml` — never hardcoded. Cost tracking uses this file for per-token cost computation and cumulative budget enforcement.

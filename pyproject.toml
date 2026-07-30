@@ -26,10 +26,12 @@ dependencies = [
 openai = ["pydantic-ai[openai]==1.63.0"]
 anthropic = ["pydantic-ai[anthropic]==1.63.0"]
 copilot = ["github-copilot-sdk==0.2.2", "json-repair>=0.30"]
+foundry = ["pydantic-ai[openai]==1.63.0", "azure-identity>=1.19"]
 claude = ["claude-agent-sdk>=0.1.63"]
 callgraph = ["pyan3>=2.6"]
 all = [
     "pydantic-ai[openai,anthropic]==1.63.0",
+    "azure-identity>=1.19",
     "bandit[sarif]>=1.9.4",
     "github-copilot-sdk==0.2.2",
     "claude-agent-sdk>=0.1.63",

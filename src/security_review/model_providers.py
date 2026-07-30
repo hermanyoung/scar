@@ -50,6 +50,42 @@ def get_openai_provider(api_key: str):
 
 
 @lru_cache(maxsize=1)
+def get_foundry_provider(base_url: str, api_version: str, token_scope: str):
+    """Create a PydanticAI AzureProvider for Azure AI Foundry, authenticated by Entra ID.
+
+    Unlike every other factory here, this one takes no API key: the Foundry
+    account runs with disableLocalAuth=true, so key auth is refused outright and
+    Entra ID is the only path. DefaultAzureCredential resolves whatever identity
+    is present — an operator's `az login` locally, a managed identity in CI —
+    and get_bearer_token_provider refreshes the token before each call, so a
+    long review never dies on an expired token mid-run.
+
+    Cached by endpoint, so a changed endpoint creates a fresh client.
+    """
+    try:
+        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+    except ImportError:
+        raise ConfigurationError(
+            "azure-identity is required for the foundry: provider. "
+            "Install with: pip install azure-identity",
+            code="SYS_DEPENDENCY_MISSING",
+        )
+
+    from openai import AsyncAzureOpenAI
+    from pydantic_ai.providers.azure import AzureProvider
+
+    token_provider = get_bearer_token_provider(DefaultAzureCredential(), token_scope)
+    client = AsyncAzureOpenAI(
+        azure_endpoint=base_url,
+        api_version=api_version,
+        azure_ad_token_provider=token_provider,
+    )
+    logger.info("provider.foundry_ready", auth_mode="entra_id",
+                base_url=base_url, api_version=api_version)
+    return AzureProvider(openai_client=client)
+
+
+@lru_cache(maxsize=1)
 def get_codex_oauth_provider(token: str):
     """Create a PydanticAI OpenAIProvider with Codex OAuth (subscription billing).
 

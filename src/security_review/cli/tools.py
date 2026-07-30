@@ -104,6 +104,22 @@ def health_check(verbose, debug):
             except ImportError as e:
                 checks.append(("auth: claude", False, str(e)))
                 logger.warning("health.check_failed", check="auth: claude", error=str(e))
+        elif provider == "foundry":
+            # Presence only, per WP8: azure-identity importable and an endpoint
+            # configured. Whether the Entra token is *valid* needs a network
+            # call, which health-check deliberately never makes.
+            try:
+                import azure.identity  # noqa: F401
+                endpoint = cfg.llm.foundry_base_url
+                checks.append((
+                    "auth: foundry", bool(endpoint),
+                    f"azure-identity present, endpoint {endpoint}" if endpoint
+                    else "llm.foundry_base_url not set",
+                ))
+            except ImportError as e:
+                checks.append(("auth: foundry", False,
+                               f"{e} — pip install azure-identity"))
+                logger.warning("health.check_failed", check="auth: foundry", error=str(e))
 
     for label, ok, detail in checks:
         mark = click.style("  [+]", fg="green") if ok else click.style("  [!]", fg="red")

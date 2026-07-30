@@ -135,6 +135,25 @@ def build_model(model_string: str, *, llm_config: "LLMConfig"):
         from security_review.model_providers import get_openai_provider, resolve_api_key
         inner = OpenAIChatModel(model_name, provider=get_openai_provider(resolve_api_key("openai")))
 
+    elif provider == "foundry":
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from security_review.model_providers import get_foundry_provider
+        if not (cfg.foundry_base_url and cfg.foundry_api_version and cfg.foundry_token_scope):
+            raise ConfigurationError(
+                "foundry: models require llm.foundry_base_url, llm.foundry_api_version, "
+                "and llm.foundry_token_scope in config/settings/security_review.yaml.",
+                code="SYS_CONFIG_INVALID",
+            )
+        # model_name is the Azure *deployment* name, not the catalogue model ID.
+        # They match on this resource, which config/models.yaml keeps true via
+        # its foundry overrides — Azure routes on the deployment.
+        inner = OpenAIChatModel(
+            model_name,
+            provider=get_foundry_provider(
+                cfg.foundry_base_url, cfg.foundry_api_version, cfg.foundry_token_scope,
+            ),
+        )
+
     elif provider == "anthropic":
         from pydantic_ai.models.anthropic import AnthropicModel
         from security_review.model_providers import get_anthropic_provider, resolve_api_key

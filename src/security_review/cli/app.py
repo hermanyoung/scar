@@ -105,6 +105,8 @@ def _show_tree():
 
     examples = Tree("[bold]Quick Start[/bold]")
     examples.add("[dim]python scar.py[/dim] [cyan]health-check[/cyan]                                  [dim]Check tool availability[/dim]")
+    examples.add("[dim]python scar.py[/dim] [cyan]list-models[/cyan]                                  [dim]Models available, resolved IDs + pricing[/dim]")
+    examples.add("[dim]python scar.py[/dim] [cyan]list-models[/cyan] --foundry                        [dim]Models published on the Azure Foundry resource[/dim]")
     examples.add("[dim]python scar.py[/dim] [cyan]review[/cyan] --target /path/to/code                 [dim]Full review (default provider)[/dim]")
     examples.add("[dim]python scar.py[/dim] [cyan]review[/cyan] --target . --mode sast                 [dim]SAST only, no LLM[/dim]")
     examples.add("[dim]python scar.py[/dim] [cyan]review[/cyan] --target . --provider copilot:claude-opus   [dim]Full review with Opus[/dim]")

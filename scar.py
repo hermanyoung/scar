@@ -6,6 +6,10 @@ Usage:
     python scar.py review --target . --provider copilot:claude-opus-4.6
     python scar.py review --target . --mode sast
     python scar.py health-check
+    python scar.py list-models
+    python scar.py list-models --provider anthropic --all
+    python scar.py list-models --foundry
+    python scar.py list-models --foundry --catalog --publisher Anthropic
     python scar.py list-rules
     python scar.py test-rule --cwe 89 --target ../my-app/
     python scar.py test-cwe --cwe 863 --target ../my-app/

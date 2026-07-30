@@ -67,3 +67,19 @@ anthropic:claude-sonnet-4-6:
 anthropic:claude-haiku-4-5:
   input_per_token: 0.000001
   output_per_token: 0.000005
+
+# Azure AI Foundry — DataZoneStandard rates for swedencentral, taken from the
+# Azure retail price API (serviceName "Foundry Models"). These deployments are
+# all DataZoneStandard, which prices ~10% above GlobalStandard; re-check these
+# if a deployment's SKU changes. Cached-input tokens are cheaper still
+# (gpt-5.4 $0.275/1M) but SCAR bills every input token at the full rate, so
+# reported cost is an upper bound rather than an under-estimate.
+foundry:gpt-5.4:                  # $2.75 / $16.50 per 1M
+  input_per_token: 0.00000275
+  output_per_token: 0.0000165
+foundry:gpt-5-mini:               # $0.275 / $2.20 per 1M
+  input_per_token: 0.000000275
+  output_per_token: 0.0000022
+foundry:gpt-5-nano:               # $0.055 / $0.44 per 1M
+  input_per_token: 0.000000055
+  output_per_token: 0.00000044

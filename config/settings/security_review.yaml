@@ -14,6 +14,9 @@
 #   cache_ttl:            str?    # "ephemeral" | "5m" | "1h" | null (Anthropic only)
 #   thinking_budget:      int?    # 1000-100000 | null (Anthropic only)
 #   temperature:          float?  # 0.0-2.0 | null = provider default
+#   foundry_base_url:     str?    # Azure OpenAI data-plane endpoint (foundry: models)
+#   foundry_api_version:  str?    # Azure OpenAI API version (foundry: models)
+#   foundry_token_scope:  str?    # Entra ID scope; differs in sovereign clouds
 #   providers:
 #     <name>:                     # copilot | claude | anthropic | openai | codex
 #       max_concurrent:   int     # 1-100
@@ -47,11 +50,30 @@
 #   output_triage:   str   # triage audit log filename (default: triage.json)
 #   exclude:         list[str]  # fnmatch globs (relative paths) to exclude from inventory. [] = none
 #   include:         list[str]  # when non-empty, only matching relative paths are reviewed. [] = all
+#
+# foundry:                      # optional block; required only by `list-models --foundry`
+#   subscription_id:     str    # Azure subscription GUID
+#   resource_group:      str
+#   account_name:        str    # Cognitive Services / AIServices account
+#   location:            str    # Azure region, e.g. swedencentral
+#   az_timeout_seconds:  int    # 10-600, per az CLI call
 # =============================================================================
 
 llm:
-  provider_model: "copilot:claude-opus"
-  triage_model: "copilot:claude-sonnet"
+  # Azure AI Foundry is the default while Anthropic models are blocked from
+  # deployment by the approved-publisher policy. gpt-5.4 is the strongest chat
+  # deployment on the resource; gpt-5-mini handles triage at ~1/10th the cost.
+  provider_model: "foundry:gpt-5.4"
+  triage_model: "foundry:gpt-5-mini"
+
+  # Foundry inference endpoint. Separate from the top-level `foundry:` block:
+  # that one holds ARM coordinates for enumerating models, this is the
+  # data-plane endpoint agents actually call. The resource runs with
+  # disableLocalAuth=true, so there is no API key — auth is Entra ID via
+  # DefaultAzureCredential (`az login` locally, managed identity in CI).
+  foundry_base_url: "https://gis-mission-control-resource.openai.azure.com/"
+  foundry_api_version: "2024-12-01-preview"
+  foundry_token_scope: "https://cognitiveservices.azure.com/.default"
   output_retries: 3
   max_budget_usd: 100            # Safety net for runaway agents. 0 = unlimited.
   max_tokens_per_batch: 150000
@@ -77,6 +99,10 @@ llm:
   # ProviderConfig has no per-provider temperature override — this single
   # value applies to every provider that respects temperature (ADR-002:
   # the Copilot SDK ignores it and hardcodes 0.1 server-side regardless).
+  # The foundry: GPT-5 deployments also ignore it — the SDK warns "Sampling
+  # parameters ['temperature'] are not supported when reasoning is enabled".
+  # So under the current foundry default this knob is inert, and runs are not
+  # reproducible via temperature alone.
   temperature: 0.2
 
   # Per-provider capacity settings.
@@ -89,11 +115,14 @@ llm:
   providers:
     copilot:
       max_concurrent: 2          # Copilot API rate-limits aggressively. 2 is safe.
-      session_timeout: 120.0     # Large CWE checks (e.g. 116 with 17 files) need >90s.
+      session_timeout: 300.0     # Large-repo CWE checks can inline 100+ files
+                                  # (150k+ input tokens); 120s was observed
+                                  # timing out on real codebases this size.
       backoff_seconds: 10.0      # Wait before fresh-session retry on timeout.
     claude:
       max_concurrent: 2          # Claude Agent SDK (Max/Pro OAuth). Conservative limit.
-      session_timeout: 120.0     # Agent SDK has subprocess overhead; allow more time.
+      session_timeout: 300.0     # Agent SDK has subprocess overhead; large-repo
+                                  # batches need the same headroom as copilot.
       backoff_seconds: 10.0
     anthropic:
       max_concurrent: 10         # httpx connection pooling handles concurrency natively.
@@ -106,6 +135,11 @@ llm:
     codex:
       max_concurrent: 5          # Codex OAuth (ChatGPT subscription). Moderate limits.
       session_timeout: 120.0
+      backoff_seconds: 5.0
+    foundry:
+      max_concurrent: 8          # Azure OpenAI via httpx pooling. Bounded by the
+                                  # deployment's TPM quota, not the client.
+      session_timeout: 300.0     # Large-repo CWE checks inline 150k+ input tokens.
       backoff_seconds: 5.0
 
 sast:
@@ -129,6 +163,18 @@ verification:
   samples: 1             # 1 = single skeptic. 3 = majority-refute (higher cost, higher precision).
   verify_holistic: true
   verify_config_review: false
+
+# Azure AI Foundry resource that `scar.py list-models --foundry` enumerates.
+# Coordinates only — no credentials. Auth comes from the operator's `az login`
+# session, and every field is explicit so the command always reports which
+# resource it queried instead of inheriting the active az subscription.
+# Remove this block if you do not use Foundry; nothing else reads it.
+foundry:
+  subscription_id: "e9ae84d8-7fa3-49c1-838e-81ce8a57a576"
+  resource_group: "rg-secrch-mission-control-dev-001"
+  account_name: "gis-mission-control-resource"
+  location: "swedencentral"
+  az_timeout_seconds: 120
 
 review:
   mode: "full"
