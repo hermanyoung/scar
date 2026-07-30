@@ -131,9 +131,21 @@ def build_model(model_string: str, *, llm_config: "LLMConfig"):
     limiter = _get_limiter(provider, provider_cfg.max_concurrent)
 
     if provider == "openai":
-        from pydantic_ai.models.openai import OpenAIChatModel
         from security_review.model_providers import get_openai_provider, resolve_api_key
-        inner = OpenAIChatModel(model_name, provider=get_openai_provider(resolve_api_key("openai")))
+        openai_provider = get_openai_provider(resolve_api_key("openai"))
+
+        if cfg.reasoning_effort:
+            # OpenAI refuses reasoning_effort alongside function tools on
+            # /v1/chat/completions, and SCAR's native JSON output *is* function
+            # tools, so that pairing 400s on every call. /v1/responses is the
+            # endpoint that serves both, and is what the API error prescribes.
+            # Azure has no such restriction, which is why foundry: below stays
+            # on chat completions.
+            from pydantic_ai.models.openai import OpenAIResponsesModel
+            inner = OpenAIResponsesModel(model_name, provider=openai_provider)
+        else:
+            from pydantic_ai.models.openai import OpenAIChatModel
+            inner = OpenAIChatModel(model_name, provider=openai_provider)
 
     elif provider == "foundry":
         from pydantic_ai.models.openai import OpenAIChatModel

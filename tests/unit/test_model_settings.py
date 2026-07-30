@@ -54,6 +54,45 @@ def test_anthropic_thinking_still_applies_alongside(llm: LLMConfig):
     assert settings["anthropic_thinking"]["budget_tokens"] == 10_000
 
 
+def _unwrap(model):
+    while hasattr(model, "wrapped"):
+        model = model.wrapped
+    return model
+
+
+def test_openai_uses_responses_api_under_reasoning(llm: LLMConfig):
+    """OpenAI rejects reasoning_effort with function tools on chat completions.
+
+    SCAR's native JSON output is function tools, so the pairing 400s on every
+    call unless the request goes to /v1/responses instead.
+    """
+    from security_review.providers import build_model
+
+    cfg = llm.model_copy(update={"reasoning_effort": "medium"})
+    assert type(_unwrap(build_model("openai:gpt", llm_config=cfg))).__name__ == (
+        "OpenAIResponsesModel"
+    )
+
+
+def test_openai_stays_on_chat_completions_without_reasoning(llm: LLMConfig):
+    from security_review.providers import build_model
+
+    cfg = llm.model_copy(update={"reasoning_effort": None})
+    assert type(_unwrap(build_model("openai:gpt", llm_config=cfg))).__name__ == (
+        "OpenAIChatModel"
+    )
+
+
+def test_foundry_keeps_chat_completions_under_reasoning(llm: LLMConfig):
+    """Azure has no such restriction, so foundry: must not be moved."""
+    from security_review.providers import build_model
+
+    cfg = llm.model_copy(update={"reasoning_effort": "medium"})
+    assert type(_unwrap(build_model("foundry:gpt-5.4", llm_config=cfg))).__name__ == (
+        "OpenAIChatModel"
+    )
+
+
 def test_invalid_reasoning_effort_rejected_at_config_load(llm: LLMConfig):
     """Fail loudly on a typo rather than silently sending it to the provider."""
     base = llm.model_dump()

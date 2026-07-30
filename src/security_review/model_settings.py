@@ -82,14 +82,23 @@ def build_model_settings(model_string: str, llm_config: LLMConfig) -> ModelSetti
     # sent alongside it: the SDK rejects sampling parameters once reasoning is
     # enabled, exactly as Anthropic rejects them under extended thinking.
     if provider in ("openai", "foundry") and llm_config.reasoning_effort:
-        from pydantic_ai.models.openai import OpenAIChatModelSettings
+        # Settings must match the model build_model() chose: openai: switches to
+        # the Responses API under reasoning, foundry: stays on chat completions.
+        if provider == "openai":
+            from pydantic_ai.models.openai import (
+                OpenAIResponsesModelSettings as _ReasoningSettings,
+            )
+        else:
+            from pydantic_ai.models.openai import (
+                OpenAIChatModelSettings as _ReasoningSettings,
+            )
 
         logger.debug(
             "model_settings.built",
             provider=provider,
             reasoning_effort=llm_config.reasoning_effort,
         )
-        return OpenAIChatModelSettings(
+        return _ReasoningSettings(
             openai_reasoning_effort=llm_config.reasoning_effort,
         )
 
