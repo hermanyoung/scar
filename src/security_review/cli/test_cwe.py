@@ -81,7 +81,7 @@ def test_cwe(cwe, target, provider, trace, temperature, reasoning_effort,
                    json_logs=False, no_file_log=True)
 
     from security_review.config import load_config
-    from security_review.checks import load_cwe_checks, select_files_for_check, select_files_for_cwe
+    from security_review.checks import load_cwe_checks, select_files_for_cwe
     from security_review.passes.inventory import discover_files
 
     cfg = load_config()
@@ -115,21 +115,8 @@ def test_cwe(cwe, target, provider, trace, temperature, reasoning_effort,
         _print_selection_comparison(check, entries, target_path)
         return
 
-    relevant = select_files_for_check(check, entries)
-    file_paths = [f.path for f in relevant]
-
-    if not file_paths:
-        click.echo(f"No relevant files for {check.display_name}", err=True)
-        raise SystemExit(1)
-
     click.echo(f"\n{check.display_name}")
     click.echo(f"  Target:   {target_path}")
-    click.echo(f"  Files:    {len(file_paths)}")
-    for fp in file_paths[:10]:
-        click.echo(f"    - {fp}")
-    if len(file_paths) > 10:
-        click.echo(f"    ... and {len(file_paths) - 10} more")
-    click.echo()
 
     # Run the check
     model_string = provider or cfg.llm.provider_model
@@ -140,7 +127,8 @@ def test_cwe(cwe, target, provider, trace, temperature, reasoning_effort,
         from security_review.model_settings import build_model_settings
         from security_review.passes.state import PipelineState
         from security_review.passes.holistic import run_single_check
-        from security_review.sarif.merger import merge_sarif
+        from security_review.passes.pipeline import _build_call_graph_if_available
+        from security_review.passes.sast import run_sast
         from security_review.models.inventory import FileManifest
 
         model = build_model(model_string, llm_config=cfg.llm)
@@ -168,12 +156,43 @@ def test_cwe(cwe, target, provider, trace, temperature, reasoning_effort,
             total_tokens=sum(e.estimated_tokens for e in entries),
             languages={},
         )
-        state.sast_sarif = merge_sarif([])
 
-        # Mirror run_holistic exactly. Without these two the benchmark measures
-        # a configuration nobody runs: no reasoning effort or prompt caching,
-        # and prompted markdown parsing even for models that enforce the schema
-        # natively — so a golden score would not describe the real pipeline.
+        # Everything below reproduces the pipeline's run-up to Pass 4. A golden
+        # score is only meaningful if the check faces the same task it faces in
+        # a real review, and each of these changes that task.
+
+        # Pass 2 for real. The holistic prompt inlines SAST findings under
+        # "do not duplicate", so an empty SARIF asks the model a strictly
+        # easier question than production does and flatters the score.
+        await run_sast(state)
+        sast_count = sum(
+            len(run.get("results", [])) for run in (state.sast_sarif or {}).get("runs", [])
+        )
+
+        # Graph-powered selection, as Pass 4 gets. Keyword-only selection picks
+        # a different file set — which is precisely what --compare-selection
+        # exists to demonstrate.
+        state.call_graph, state.pagerank = _build_call_graph_if_available(state)
+
+        source_files = [f for f in state.manifest.files if f.language in ("python", "csharp")]
+        relevant, _telemetry = select_files_for_cwe(
+            check, source_files, call_graph=state.call_graph, pagerank=state.pagerank,
+        )
+        file_paths = [f.path for f in relevant]
+
+        if not file_paths:
+            click.echo(f"No relevant files for {check.display_name}", err=True)
+            raise SystemExit(1)
+
+        click.echo(f"  SAST:     {sast_count} findings inlined as context")
+        click.echo(f"  Selection:{' graph-powered' if state.call_graph else ' keyword-only (no call graph)'}")
+        click.echo(f"  Files:    {len(file_paths)}")
+        for fp in file_paths[:10]:
+            click.echo(f"    - {fp}")
+        if len(file_paths) > 10:
+            click.echo(f"    ... and {len(file_paths) - 10} more")
+        click.echo()
+
         result = await run_single_check(
             check=check,
             file_paths=file_paths,
