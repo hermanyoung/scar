@@ -48,6 +48,14 @@ class LLMConfig(BaseModel, extra="forbid"):
         description="Max thinking tokens for Anthropic extended reasoning. None = disabled.",
     )
 
+    reasoning_effort: str | None = Field(
+        default=None,
+        pattern=r"^(minimal|low|medium|high)$",
+        description="Reasoning depth for OpenAI-family reasoning models (openai:, foundry:). "
+                    "The counterpart of thinking_budget for Anthropic. None = deployment default, "
+                    "which spends no reasoning tokens.",
+    )
+
     temperature: float | None = Field(
         default=None,
         ge=0.0,

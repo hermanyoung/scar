@@ -41,7 +41,7 @@ cwes:
       claude:claude-opus:    { pass: true, findings: 3 }
       openai:gpt:            { pass: true, findings: 3 }
       codex:gpt:             { pass: true, findings: 3 }
-      foundry:gpt-5.4:       { pass: false, findings: 2 }
+      foundry:gpt-5.4:       { pass: true, findings: 3 }
 
   "312":
     name: "Cleartext Storage of Sensitive Info"
@@ -55,7 +55,7 @@ cwes:
       claude:claude-opus:    { pass: true, findings: 1 }
       openai:gpt:            { pass: true, findings: 1 }
       codex:gpt:             { pass: true, findings: 1 }
-      foundry:gpt-5.4:       { pass: true, findings: 1 }
+      foundry:gpt-5.4:       { pass: true, findings: 2 }
 
   "693":
     name: "Protection Mechanism Failure"
@@ -69,7 +69,7 @@ cwes:
       claude:claude-opus:    { pass: true, findings: 2 }
       openai:gpt:            { pass: true, findings: 1 }
       codex:gpt:             { pass: true, findings: 1 }
-      foundry:gpt-5.4:       { pass: true, findings: 2 }
+      foundry:gpt-5.4:       { pass: true, findings: 3 }
 
   "116":
     name: "Improper Encoding / Output Neutralization"
@@ -97,7 +97,7 @@ cwes:
       claude:claude-opus:    { pass: true, findings: 1 }
       openai:gpt:            { pass: true, findings: 2 }
       codex:gpt:             { pass: false, findings: 0 }
-      foundry:gpt-5.4:       { pass: true, findings: 3 }
+      foundry:gpt-5.4:       { pass: true, findings: 4 }
 
   "522":
     name: "Insufficiently Protected Credentials"
@@ -125,7 +125,7 @@ cwes:
       claude:claude-opus:    { pass: true, findings: 1 }
       openai:gpt:            { pass: true, findings: 1 }
       codex:gpt:             { pass: true, findings: 1 }
-      foundry:gpt-5.4:       { pass: true, findings: 1 }
+      foundry:gpt-5.4:       { pass: true, findings: 2 }
 
   "319":
     name: "Cleartext Transmission"
@@ -139,7 +139,7 @@ cwes:
       claude:claude-opus:    { pass: true, findings: 1 }
       openai:gpt:            { pass: true, findings: 2 }
       codex:gpt:             { pass: false, findings: 0 }
-      foundry:gpt-5.4:       { pass: false, findings: 0 }
+      foundry:gpt-5.4:       { pass: true, findings: 1 }
 
   "400":
     name: "Uncontrolled Resource Consumption"
@@ -167,4 +167,4 @@ cwes:
       claude:claude-opus:    { pass: true, findings: 2 }
       openai:gpt:            { pass: true, findings: 2 }
       codex:gpt:             { pass: true, findings: 2 }
-      foundry:gpt-5.4:       { pass: true, findings: 4 }
+      foundry:gpt-5.4:       { pass: true, findings: 3 }

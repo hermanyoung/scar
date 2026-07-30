@@ -4,7 +4,10 @@ Anthropic supports:
   - Prompt caching: system prompts cached across calls (90% input token savings)
   - Extended thinking: deeper reasoning for complex CWE checks
 
-Copilot/OpenAI: no provider-specific settings (returns None).
+OpenAI-family reasoning models (openai:, foundry:) support:
+  - Reasoning effort: the equivalent of extended thinking for GPT-5 deployments
+
+Copilot/claude/codex: no provider-specific settings.
 
 Usage:
     settings = build_model_settings("anthropic:claude-sonnet-4-6", state.config.llm)
@@ -72,7 +75,25 @@ def build_model_settings(model_string: str, llm_config: LLMConfig) -> ModelSetti
         )
         return AnthropicModelSettings(**kwargs)
 
-    # Non-anthropic providers: apply temperature if configured.
+    # OpenAI-family reasoning models — the counterpart of Anthropic extended
+    # thinking. Left unset, these deployments answer from the prompt alone and
+    # spend no reasoning tokens at all, which costs real detections on the
+    # checks that need multi-step reasoning. Temperature is deliberately not
+    # sent alongside it: the SDK rejects sampling parameters once reasoning is
+    # enabled, exactly as Anthropic rejects them under extended thinking.
+    if provider in ("openai", "foundry") and llm_config.reasoning_effort:
+        from pydantic_ai.models.openai import OpenAIChatModelSettings
+
+        logger.debug(
+            "model_settings.built",
+            provider=provider,
+            reasoning_effort=llm_config.reasoning_effort,
+        )
+        return OpenAIChatModelSettings(
+            openai_reasoning_effort=llm_config.reasoning_effort,
+        )
+
+    # Remaining providers: apply temperature if configured.
     if temperature is not None:
         return ModelSettings(temperature=temperature)
 

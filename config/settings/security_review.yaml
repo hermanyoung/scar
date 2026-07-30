@@ -92,6 +92,14 @@ llm:
   # Only applies when provider_model starts with "anthropic:". null = disabled.
   # thinking_budget: 10000
 
+  # OpenAI-family equivalent of thinking_budget, for the reasoning models
+  # behind openai: and foundry:. Values: minimal | low | medium | high.
+  # Unset, these deployments answer straight from the prompt and spend zero
+  # reasoning tokens, which loses the CWEs that need multi-step reasoning.
+  # Set alongside temperature, this one wins: the SDK refuses sampling
+  # parameters once reasoning is on.
+  reasoning_effort: "high"
+
   # LLM sampling temperature — controls result determinism.
   # null = provider default (typically 1.0 for Claude, 1.0 for GPT).
   # 0.0  = fully deterministic, reproducible across runs (recommended for CI/benchmarks).
