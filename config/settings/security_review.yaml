@@ -95,10 +95,18 @@ llm:
   # OpenAI-family equivalent of thinking_budget, for the reasoning models
   # behind openai: and foundry:. Values: minimal | low | medium | high.
   # Unset, these deployments answer straight from the prompt and spend zero
-  # reasoning tokens, which loses the CWEs that need multi-step reasoning.
-  # Set alongside temperature, this one wins: the SDK refuses sampling
-  # parameters once reasoning is on.
-  reasoning_effort: "high"
+  # reasoning tokens. Set alongside temperature, this one wins: the SDK
+  # refuses sampling parameters once reasoning is on.
+  #
+  # "medium" is measured, not assumed. Nine golden runs (3 each at high,
+  # medium, off) scored 8.0 / 8.67 / 7.67 of 11 -- a wash on aggregate, but
+  # two CWEs move in opposite directions and neither extreme wins both:
+  #   CWE-319 passes 3/3 at high, 1/3 at medium, 0/3 at off
+  #   CWE-312 passes 1/3 at high, 2/3 at medium, 3/3 at off
+  # More reasoning makes the model argue itself out of reporting the simpler
+  # findings. High also tripped the 180s per-check timeout. Medium scores
+  # best overall at roughly half the cost and latency of high.
+  reasoning_effort: "medium"
 
   # LLM sampling temperature — controls result determinism.
   # null = provider default (typically 1.0 for Claude, 1.0 for GPT).

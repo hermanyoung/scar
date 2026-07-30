@@ -126,6 +126,7 @@ def run_test_cwe(
     scar_py: Path,
     delay_s: float = 2.0,
     temperature: float | None = None,
+    reasoning_effort: str | None = None,
 ) -> TestResult:
     """Run `python scar.py test-cwe --cwe CWE --target TARGET --provider PROVIDER` and parse output."""
     t0 = time.monotonic()
@@ -139,6 +140,8 @@ def run_test_cwe(
     ]
     if temperature is not None:
         cmd.extend(["--temperature", str(temperature)])
+    if reasoning_effort is not None:
+        cmd.extend(["--reasoning-effort", reasoning_effort])
 
     try:
         proc = subprocess.run(
@@ -388,7 +391,8 @@ def run_ab_sdk(
                 for prov in providers:
                     short = prov.replace("claude-opus", "opus")
                     print(f"    CWE-{bl.cwe_id} / {short} ...", end="", flush=True)
-                    r = run_test_cwe(bl.cwe_id, target, prov, scar_py, delay_s=delay_s, temperature=args.temperature)
+                    r = run_test_cwe(bl.cwe_id, target, prov, scar_py, delay_s=delay_s, temperature=args.temperature,
+                                      reasoning_effort=args.reasoning_effort)
                     all_results[version][bl.cwe_id][prov].append(r)
                     sym = _pass_symbol(r.finding_count, bl.expected_min, r.error)
                     print(f" {sym} ({r.finding_count} findings, {r.elapsed_s:.0f}s)")
@@ -537,6 +541,13 @@ def main() -> None:
         help="Override LLM temperature (default: use config value). Note: copilot ignores this (hardcoded 0.1).",
     )
     parser.add_argument(
+        "--reasoning-effort",
+        choices=["minimal", "low", "medium", "high", "off"],
+        default=None,
+        help="Override reasoning depth for openai:/foundry: models ('off' disables it). "
+             "Use with --runs to compare settings without editing config.",
+    )
+    parser.add_argument(
         "--details",
         action="store_true",
         help="Print per-finding detail for non-passing CWEs",
@@ -607,7 +618,8 @@ def main() -> None:
             call_n += 1
             short = prov.replace("claude-opus", "opus")
             print(f"  [{call_n}/{total_calls}] CWE-{bl.cwe_id} / {short} ...", end="", flush=True)
-            r = run_test_cwe(bl.cwe_id, target, prov, scar_py, delay_s=args.delay, temperature=args.temperature)
+            r = run_test_cwe(bl.cwe_id, target, prov, scar_py, delay_s=args.delay, temperature=args.temperature,
+                              reasoning_effort=args.reasoning_effort)
             results[bl.cwe_id][prov] = r
             sym = _pass_symbol(r.finding_count, bl.expected_min, r.error)
             elapsed_str = f"{r.elapsed_s:.0f}s"

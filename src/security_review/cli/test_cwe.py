@@ -67,11 +67,15 @@ def _print_selection_comparison(check, entries, target_path: Path) -> None:
               help="Write trace file to var/output/.")
 @click.option("--temperature", type=float, default=None,
               help="Override LLM temperature (0.0=deterministic, 1.0=creative).")
+@click.option("--reasoning-effort", type=click.Choice(["minimal", "low", "medium", "high", "off"]),
+              default=None,
+              help="Override reasoning depth for openai:/foundry: models. 'off' disables it.")
 @click.option("--compare-selection", is_flag=True,
               help="Compare graph-walk vs keyword-only file selection and exit (no LLM call).")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed output.")
 @click.option("--debug", is_flag=True, help="DEBUG-level logging.")
-def test_cwe(cwe, target, provider, trace, temperature, compare_selection, verbose, debug):
+def test_cwe(cwe, target, provider, trace, temperature, reasoning_effort,
+             compare_selection, verbose, debug):
     """Run a single LLM holistic CWE check against a target."""
     _setup_logging(verbose or not debug, debug, quiet=False,
                    json_logs=False, no_file_log=True)
@@ -83,6 +87,11 @@ def test_cwe(cwe, target, provider, trace, temperature, compare_selection, verbo
     cfg = load_config()
     if temperature is not None:
         cfg = cfg.model_copy(update={"llm": cfg.llm.model_copy(update={"temperature": temperature})})
+    if reasoning_effort is not None:
+        # "off" is the CLI spelling of None — Click cannot express "explicitly
+        # unset" against a config value that is itself nullable.
+        effort = None if reasoning_effort == "off" else reasoning_effort
+        cfg = cfg.model_copy(update={"llm": cfg.llm.model_copy(update={"reasoning_effort": effort})})
     target_path = Path(target).resolve()
 
     if not target_path.exists():
