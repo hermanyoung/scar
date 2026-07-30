@@ -4,6 +4,10 @@ rules:
       - pattern-either:
           - pattern: $APP.UseDeveloperExceptionPage()
           - pattern: $APP.UseDatabaseErrorPage()
+      # The message below tells developers to put these calls behind an
+      # IsDevelopment() guard, so flagging code that already does is wrong.
+      - pattern-not-inside: |
+          if ($ENV.IsDevelopment()) { ... }
     message: >
       Developer exception page or database error page is enabled. These pages
       expose detailed error messages, stack traces, SQL queries, and

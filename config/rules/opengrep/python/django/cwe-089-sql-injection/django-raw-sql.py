@@ -11,8 +11,8 @@ users = User.objects.raw("SELECT * FROM users WHERE name = '%s'" % name)
 # ruleid: python.django.security.cwe-089.django-raw-sql
 users = User.objects.raw("SELECT * FROM users WHERE name = '{}'".format(name))
 
-# ruleid: python.django.security.cwe-089.django-raw-sql
 cursor = connection.cursor()
+# ruleid: python.django.security.cwe-089.django-raw-sql
 cursor.execute(f"DELETE FROM users WHERE id = {user_id}")
 
 # ruleid: python.django.security.cwe-089.django-raw-sql

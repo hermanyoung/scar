@@ -7,16 +7,21 @@ rules:
           - pattern: logger.$METHOD(..., secret=..., ...)
           - pattern: logger.$METHOD(..., api_key=..., ...)
           - pattern: logger.$METHOD(..., credential=..., ...)
-          - pattern: logger.$METHOD(f"...password...")
-          - pattern: logger.$METHOD(f"...token...")
-          - pattern: logger.$METHOD(f"...secret...")
-          - pattern: logger.$METHOD(f"...api_key...")
-          - pattern: logging.$METHOD(f"...password...")
-          - pattern: logging.$METHOD(f"...token...")
-          - pattern: logging.$METHOD(f"...secret...")
-          - pattern: print(f"...password...")
-          - pattern: print(f"...token...")
-          - pattern: print(f"...secret...")
+          # Literal text between ellipses does not match inside an f-string
+          # (unlike f"...{$X}..."), so the previous f-string patterns never
+          # fired. Bind the whole argument and test its text instead.
+          - patterns:
+              - pattern-either:
+                  - pattern: logger.$METHOD($MSG)
+                  - pattern: logging.$METHOD($MSG)
+                  - pattern: print($MSG)
+              # The keyword must sit against an interpolation -- either
+              # labelling one ("token={x}") or naming one ("{password}").
+              # Merely containing the word is not enough, or "Estimated
+              # tokens: {n}" reads as a leaked credential.
+              - metavariable-regex:
+                  metavariable: $MSG
+                  regex: (?i)^f['"].*((password|passwd|pwd|token|secret|api_?key|credential)\s*[=:]\s*\{|\{\s*(password|passwd|pwd|token|secret|api_?key|credential)\b)
     message: >
       Sensitive data (password, token, secret, API key) is being logged or
       printed. Log files are often stored in plain text, shared across teams,

@@ -7,55 +7,55 @@ using Newtonsoft.Json;
 
 public class DeserializationExamples
 {
-    // ruleid: csharp.lang.security.cwe-502.binary-formatter
     public object VulnerableBinaryFormatter(Stream stream)
     {
+        // ruleid: csharp.lang.security.cwe-502.binary-formatter
         var formatter = new BinaryFormatter();
         return formatter.Deserialize(stream);
     }
 
-    // ruleid: csharp.lang.security.cwe-502.binary-formatter
     public object VulnerableNetDataContract(Stream stream)
     {
+        // ruleid: csharp.lang.security.cwe-502.binary-formatter
         var serializer = new NetDataContractSerializer();
         return serializer.Deserialize(stream);
     }
 
-    // ruleid: csharp.lang.security.cwe-502.binary-formatter
     public object VulnerableSoapFormatter(Stream stream)
     {
+        // ruleid: csharp.lang.security.cwe-502.binary-formatter
         var formatter = new SoapFormatter();
         return formatter.Deserialize(stream);
     }
 
-    // ruleid: csharp.lang.security.cwe-502.binary-formatter
     public object VulnerableLosFormatter(string input)
     {
+        // ruleid: csharp.lang.security.cwe-502.binary-formatter
         var formatter = new LosFormatter();
         return formatter.Deserialize(input);
     }
 
-    // ruleid: csharp.lang.security.cwe-502.newtonsoft-typenamehandling
     public object VulnerableNewtonsoft(string json)
     {
         var settings = new JsonSerializerSettings
         {
+            // ruleid: csharp.lang.security.cwe-502.newtonsoft-typenamehandling
             TypeNameHandling = TypeNameHandling.All
         };
         return JsonConvert.DeserializeObject(json, settings);
     }
 
-    // ok: csharp.lang.security.cwe-502.binary-formatter
     public object SafeSystemTextJson(string json)
     {
+        // ok: csharp.lang.security.cwe-502.binary-formatter
         return System.Text.Json.JsonSerializer.Deserialize<MyDto>(json);
     }
 
-    // ok: csharp.lang.security.cwe-502.newtonsoft-typenamehandling
     public object SafeNewtonsoftNone(string json)
     {
         var settings = new JsonSerializerSettings
         {
+            // ok: csharp.lang.security.cwe-502.newtonsoft-typenamehandling
             TypeNameHandling = TypeNameHandling.None
         };
         return JsonConvert.DeserializeObject<MyDto>(json, settings);

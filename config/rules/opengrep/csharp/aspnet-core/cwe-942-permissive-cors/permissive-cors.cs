@@ -5,9 +5,9 @@ public class CorsExamples
 {
     public void Vulnerable(IServiceCollection services, WebApplication app)
     {
-        // ruleid: csharp.aspnet.security.cwe-942.permissive-cors
         services.AddCors(options =>
         {
+            // ruleid: csharp.aspnet.security.cwe-942.permissive-cors
             options.AddPolicy("open", builder => builder.AllowAnyOrigin());
         });
 

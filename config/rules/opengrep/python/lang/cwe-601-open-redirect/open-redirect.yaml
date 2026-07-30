@@ -2,16 +2,24 @@ rules:
   - id: python.lang.security.cwe-601.open-redirect
     patterns:
       - pattern-either:
-          - pattern: redirect($USER_INPUT)
           - pattern: redirect(request.args.get(...))
           - pattern: redirect(request.form.get(...))
           - pattern: redirect(request.GET.get(...))
           - pattern: redirect(request.POST.get(...))
-          - pattern: HttpResponseRedirect($USER_INPUT)
           - pattern: HttpResponseRedirect(request.GET.get(...))
           - pattern: HttpResponseRedirect(request.POST.get(...))
-          - pattern: RedirectResponse(url=$USER_INPUT)
           - pattern: RedirectResponse(request.query_params.get(...))
+          - patterns:
+              - pattern-either:
+                  - pattern: redirect($USER_INPUT)
+                  - pattern: HttpResponseRedirect($USER_INPUT)
+                  - pattern: RedirectResponse(url=$USER_INPUT)
+              # A literal target is a fixed internal path, and url_for() builds
+              # a route from the app's own URL map. Neither can be steered by an
+              # attacker, so neither is an open redirect.
+              - metavariable-regex:
+                  metavariable: $USER_INPUT
+                  regex: ^(?!['"][^'"]*['"]$)(?!url_for\().*$
     message: >
       Redirect to a URL from user input without validation. An attacker can
       craft a URL that redirects users to a malicious site (phishing). Validate

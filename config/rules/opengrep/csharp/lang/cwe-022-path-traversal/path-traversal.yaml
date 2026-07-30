@@ -4,10 +4,18 @@ rules:
       - pattern-either:
           - pattern: System.IO.File.ReadAllText(... + $USER_INPUT + ...)
           - pattern: System.IO.File.ReadAllText($"...{$USER_INPUT}...")
-          - pattern: System.IO.Path.Combine(..., $USER_INPUT, ...)
           - pattern: new StreamReader(... + $USER_INPUT + ...)
           - pattern: new FileStream(... + $USER_INPUT + ..., ...)
           - pattern: System.IO.File.Open(... + $USER_INPUT + ..., ...)
+          - patterns:
+              - pattern: System.IO.Path.Combine(..., $USER_INPUT, ...)
+              # Path.Combine is the normal way to build any path, so without
+              # this the rule flags every use. A literal segment is fixed at
+              # author time and the framework roots below are supplied by the
+              # runtime, so neither can carry a traversal sequence.
+              - metavariable-regex:
+                  metavariable: $USER_INPUT
+                  regex: ^(?!"[^"]*"$)(?!AppDomain\.)(?!AppContext\.)(?!Environment\.)(?!Directory\.)(?!Path\.).*$
     message: >
       File path constructed from user input without validation. If the input
       contains ../ or ..\ sequences, an attacker can access files outside the

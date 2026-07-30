@@ -2,13 +2,21 @@ rules:
   - id: python.lang.security.cwe-022.path-traversal
     patterns:
       - pattern-either:
-          - pattern: open(... + $USER_INPUT + ..., ...)
-          - pattern: open(f"...{$USER_INPUT}...", ...)
-          - pattern: open(os.path.join(..., $USER_INPUT, ...), ...)
-          - pattern: pathlib.Path($USER_INPUT)
-          - pattern: shutil.copy($USER_INPUT, ...)
-          - pattern: shutil.copy(..., $USER_INPUT)
-          - pattern: shutil.move($USER_INPUT, ...)
+          - patterns:
+              - pattern-either:
+                  - pattern: open(... + $USER_INPUT + ..., ...)
+                  - pattern: open(f"...{$USER_INPUT}...", ...)
+                  - pattern: open(os.path.join(..., $USER_INPUT, ...), ...)
+                  - pattern: pathlib.Path($USER_INPUT)
+                  - pattern: shutil.copy($USER_INPUT, ...)
+                  - pattern: shutil.copy(..., $USER_INPUT)
+                  - pattern: shutil.move($USER_INPUT, ...)
+              # A path component written as a string literal is fixed at author
+              # time, and dunders such as __file__ come from the interpreter.
+              # Neither is user input, so neither is a traversal vector.
+              - metavariable-regex:
+                  metavariable: $USER_INPUT
+                  regex: ^(?!__|['"][^'"]*['"]$).*$
           - pattern: os.path.join(..., request.$ATTR, ...)
     message: >
       File path constructed from user input without validation. If the input

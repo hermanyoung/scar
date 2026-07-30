@@ -1,3 +1,5 @@
+# ASCII only: the opengrep --test harness reads rule files as ASCII and aborts
+# on any high byte.
 rules:
   - id: python.lang.security.cwe-918.ssrf-user-url
     patterns:
@@ -10,9 +12,23 @@ rules:
           - pattern: httpx.post($USER_URL, ...)
           - pattern: urllib.request.urlopen($USER_URL, ...)
           - pattern: urllib.request.urlretrieve($USER_URL, ...)
-          - pattern: $CLIENT.get($USER_URL, ...)
-          - pattern: $CLIENT.post($USER_URL, ...)
-          - pattern: $CLIENT.fetch($USER_URL, ...)
+          # A bare $CLIENT receiver matches *any* object, so these three forms
+          # once flagged every dict .get() in the codebase. Restrict the
+          # receiver to names that plausibly hold an HTTP client.
+          - patterns:
+              - pattern-either:
+                  - pattern: $CLIENT.get($USER_URL, ...)
+                  - pattern: $CLIENT.post($USER_URL, ...)
+                  - pattern: $CLIENT.fetch($USER_URL, ...)
+              - metavariable-regex:
+                  metavariable: $CLIENT
+                  regex: (?i)^([A-Za-z_][A-Za-z0-9_]*[._])*(http|https|client|session|http_?client|web_?client|requests|httpx)$
+      # A URL written as a single string literal is fixed at author time and so
+      # is not attacker-controlled. Anything else (a name, an f-string, a
+      # concatenation) stays in scope.
+      - metavariable-regex:
+          metavariable: $USER_URL
+          regex: ^(?!['"][^'"]*['"]$).*$
     message: >
       HTTP request to a URL that may be user-controlled. If an attacker can
       control the URL, they can make the server request internal services

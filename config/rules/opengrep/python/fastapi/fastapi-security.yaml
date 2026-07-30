@@ -28,8 +28,20 @@ rules:
           - pattern: requests.post($URL, ...)
           - pattern: httpx.get($URL)
           - pattern: httpx.post($URL, ...)
-          - pattern: await $CLIENT.get($URL)
-          - pattern: await $CLIENT.post($URL, ...)
+          # A bare $CLIENT receiver matches any object; restrict it to names
+          # that plausibly hold an HTTP client.
+          - patterns:
+              - pattern-either:
+                  - pattern: await $CLIENT.get($URL)
+                  - pattern: await $CLIENT.post($URL, ...)
+              - metavariable-regex:
+                  metavariable: $CLIENT
+                  regex: (?i)^([A-Za-z_][A-Za-z0-9_]*[._])*(http|https|client|session|http_?client|web_?client|requests|httpx)$
+      # A URL written as a single string literal is fixed at author time and so
+      # is not attacker-controlled.
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^(?!['"][^'"]*['"]$).*$
     message: >
       HTTP request to a URL that may be user-controlled. If an attacker can
       control the URL, they can make the server request internal services (SSRF).

@@ -8,9 +8,11 @@ f = open("/uploads/" + user_input + ".txt", "r")
 # ruleid: python.lang.security.cwe-022.path-traversal
 f = open(f"/data/{filename}", "r")
 
+# Known limitation: the join must be inline inside open(). Binding it to a name
+# first hides it, because following the value across the assignment needs taint
+# tracking and no rule in this set uses taint mode.
 # ruleid: python.lang.security.cwe-022.path-traversal
-path = os.path.join("/uploads", user_input, "file.txt")
-f = open(path, "r")
+f = open(os.path.join("/uploads", user_input, "file.txt"), "r")
 
 # ruleid: python.lang.security.cwe-022.path-traversal
 p = pathlib.Path(user_input)

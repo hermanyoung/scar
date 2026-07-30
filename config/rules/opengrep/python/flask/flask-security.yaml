@@ -42,7 +42,11 @@ rules:
           - pattern: redirect(request.args["..."])
           - pattern: redirect(request.form.get("..."))
           - pattern: redirect(request.form["..."])
-          - pattern: redirect(url)
+          # `redirect(url)` used to sit here, but a bare name in a pattern is
+          # matched literally, so it only fired when the variable happened to
+          # be called `url`. The general case belongs to
+          # python.lang.security.cwe-601.open-redirect; this rule covers the
+          # Flask-specific request accessors.
     message: >
       Flask redirect with potentially user-controlled URL. This can lead to open
       redirect attacks. Validate the URL is safe using url_has_allowed_host_and_scheme()

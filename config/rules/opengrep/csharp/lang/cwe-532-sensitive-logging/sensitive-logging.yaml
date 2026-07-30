@@ -1,34 +1,26 @@
 rules:
   - id: csharp.lang.security.cwe-532.sensitive-logging
     patterns:
+      # The string-ellipsis form ($"...password...") does not match inside a
+      # C# interpolated string, so the previous 27 patterns never fired. Bind
+      # the whole argument instead and test its text.
       - pattern-either:
-          - pattern: $LOGGER.LogInformation($"...password...")
-          - pattern: $LOGGER.LogInformation($"...token...")
-          - pattern: $LOGGER.LogInformation($"...secret...")
-          - pattern: $LOGGER.LogInformation($"...apiKey...")
-          - pattern: $LOGGER.LogWarning($"...password...")
-          - pattern: $LOGGER.LogWarning($"...token...")
-          - pattern: $LOGGER.LogWarning($"...secret...")
-          - pattern: $LOGGER.LogWarning($"...apiKey...")
-          - pattern: $LOGGER.LogError($"...password...")
-          - pattern: $LOGGER.LogError($"...token...")
-          - pattern: $LOGGER.LogError($"...secret...")
-          - pattern: $LOGGER.LogError($"...apiKey...")
-          - pattern: $LOGGER.LogDebug($"...password...")
-          - pattern: $LOGGER.LogDebug($"...token...")
-          - pattern: $LOGGER.LogDebug($"...secret...")
-          - pattern: $LOGGER.LogDebug($"...apiKey...")
-          - pattern: $LOGGER.LogCritical($"...password...")
-          - pattern: $LOGGER.LogCritical($"...token...")
-          - pattern: $LOGGER.LogCritical($"...secret...")
-          - pattern: $LOGGER.LogCritical($"...apiKey...")
-          - pattern: $LOGGER.LogTrace($"...password...")
-          - pattern: $LOGGER.LogTrace($"...token...")
-          - pattern: $LOGGER.LogTrace($"...secret...")
-          - pattern: $LOGGER.LogTrace($"...apiKey...")
-          - pattern: Console.WriteLine($"...password...")
-          - pattern: Console.WriteLine($"...token...")
-          - pattern: Console.WriteLine($"...secret...")
+          - pattern: $LOGGER.LogInformation($MSG)
+          - pattern: $LOGGER.LogWarning($MSG)
+          - pattern: $LOGGER.LogError($MSG)
+          - pattern: $LOGGER.LogDebug($MSG)
+          - pattern: $LOGGER.LogCritical($MSG)
+          - pattern: $LOGGER.LogTrace($MSG)
+          - pattern: Console.WriteLine($MSG)
+      # Require an interpolated string naming a secret. A plain literal carries
+      # no runtime value, and the structured form (template + separate args)
+      # keeps the value out of the message entirely.
+      # The keyword must sit against an interpolation -- either labelling one
+      # ("token={x}") or naming one ("{password}"). Merely containing the word
+      # is not enough, or "Estimated tokens: {n}" reads as a leaked credential.
+      - metavariable-regex:
+          metavariable: $MSG
+          regex: (?i)^\$".*((password|passwd|pwd|token|secret|api_?key|credential)\s*[=:]\s*\{|\{\s*(password|passwd|pwd|token|secret|api_?key|credential)\b)
     message: >
       Sensitive data (password, token, secret, API key) is being logged.
       Log files are often stored in plain text and aggregated in log

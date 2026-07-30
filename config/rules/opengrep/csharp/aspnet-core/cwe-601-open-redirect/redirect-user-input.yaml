@@ -1,12 +1,19 @@
 rules:
   - id: csharp.aspnet-core.security.cwe-601.redirect-user-input
     patterns:
+      # Redirect($TARGET) already subsumes the Request.Query and named-argument
+      # forms this rule used to list separately.
       - pattern-either:
-          - pattern: Redirect($REQUEST)
-          - pattern: RedirectPermanent($REQUEST)
-          - pattern: Redirect(Request.Query["..."])
-          - pattern: Redirect(returnUrl)
-          - pattern: Redirect(url)
+          - pattern: Redirect($TARGET)
+          - pattern: RedirectPermanent($TARGET)
+      # A literal target is a fixed internal path, not attacker-controlled.
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: ^(?!"[^"]*"$).*$
+      # The message below tells developers to validate with Url.IsLocalUrl(),
+      # so code that already does must not be flagged.
+      - pattern-not-inside: |
+          if ($URL.IsLocalUrl(...)) ...
     message: >
       Redirect using potentially user-controlled URL. This can lead to open redirect
       attacks where users are sent to malicious sites. Use Url.IsLocalUrl() to validate

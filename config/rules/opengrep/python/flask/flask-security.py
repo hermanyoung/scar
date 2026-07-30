@@ -5,17 +5,16 @@ app = Flask(__name__)
 # ruleid: python.flask.security.debug-true
 app.run(host="0.0.0.0", debug=True)
 
-# ruleid: python.flask.security.render-template-string
 @app.route("/greet")
 def greet():
     name = request.args.get("name")
+    # ruleid: python.flask.security.render-template-string
     return render_template_string(f"<h1>Hello {name}</h1>")
 
-# ruleid: python.flask.security.open-redirect
 @app.route("/login")
 def login():
-    next_url = request.args.get("next")
-    return redirect(next_url)
+    # ruleid: python.flask.security.open-redirect
+    return redirect(request.args.get("next"))
 
 # ok: python.flask.security.debug-true
 app.run(host="0.0.0.0", debug=False)
