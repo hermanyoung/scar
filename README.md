@@ -293,19 +293,11 @@ python scripts/code_map.py --max-tokens 2048
 
 # Summary statistics only
 python scripts/code_map.py --stats
-
-# Full code intelligence analysis
-python scripts/code_intel.py --target .
-
-# Security-weight ranking
-python scripts/code_intel.py --target . --weights
-
-# Unsafe pattern report
-python scripts/code_intel.py --target . --unsafe
-
-# Quality metrics
-python scripts/code_intel.py --target . --quality
 ```
+
+Structural analysis (parsing, call graph, PageRank, security-weight) lives in
+the `src/code_analysis/` package, consumed directly by the pipeline. Quality
+metrics are available via `python scar.py quality --target .`.
 
 ---
 
@@ -624,8 +616,7 @@ scar/
     benchmark_models.py        # Model accuracy benchmarking against the eval corpus
     test_providers.py          # Provider compatibility tests
     check_rules.py             # Internal code rule checker
-    code_intel.py               # Structural analysis
-    code_map.py                 # Code map generation
+    code_map.py                 # Code map generation (thin CLI over src/code_analysis)
   var/
     output/                   # Review output: {date}-{target}-{run-id}/
     logs/                     # JSONL system logs (daily rotation)

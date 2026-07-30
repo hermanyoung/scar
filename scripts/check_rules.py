@@ -203,9 +203,9 @@ def check_file_size(path: Path, rel: str) -> list[Violation]:
 
     Scoped to src/ only, for now: scripts/ (e.g. setup.py, check_rules.py
     itself) is exempt. This is a deliberate, temporary carve-out that
-    expires once scripts/code_intel.py and scripts/code_map.py are
-    consolidated into src/code_analysis (see plan 021 §0.4 item 1) — at
-    that point scripts/ should be brought into scope too.
+    expires once scripts/code_map.py is reduced to a thin CLI over
+    src/code_analysis (see plan 021 §0.4 item 1) — at that point scripts/
+    should be brought into scope too.
     """
     if not rel.startswith("src/"):
         return []

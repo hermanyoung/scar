@@ -33,7 +33,6 @@
 - [x] Delete empty `taxonomy/` directory
 
 ## Pipeline
-- [ ] Integrate `code_intel` into Pass 1 inventory (replace keyword-based security-weight with PageRank)
 - [ ] Add code_analysis IDOR heuristic (deterministic pre-screening for auth-without-authz)
 - [ ] Type-safe `PipelineState` transitions — replace the mutable God object with typed per-phase states (`InitialState` → `AfterInventory` → `AfterSAST` → ...) so the type checker prevents pass-ordering bugs. Large surface area: touches every pass function, pipeline orchestrator, `SecurityReviewDeps`, `test-cwe`, and benchmarks. Low urgency — current runtime guards work, no bugs from this. Prioritize when adding custom/pluggable passes.
 

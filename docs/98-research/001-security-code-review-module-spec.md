@@ -1313,6 +1313,13 @@ def normalise_cwe_tags(rule: dict) -> list[str]:
 
 ## 7.0 Code Intelligence
 
+> **Implementation note (historical spec).** This section describes the original
+> `code_intel` design. As built, it became the standalone `src/code_analysis/`
+> package (structural analysis, call graph, PageRank) plus `src/code_quality/`
+> (PQI scoring) — not a `code_intel` package under `src/security_review/`. The
+> `scripts/code_intel.py` prototype has been removed; `scripts/code_map.py` is a
+> thin CLI over `src/code_analysis/`. Read the code samples below as design intent.
+
 ### 7.1 Overview
 
 Two standalone analysis scripts (`code_map.py`, `code_quality.py`) are refactored into a `code_intel` package inside the module. This package provides **language-agnostic structural analysis** with pluggable parsers for Python and C#. It feeds three pipeline stages:

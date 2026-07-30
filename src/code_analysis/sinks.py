@@ -18,7 +18,7 @@ from functools import lru_cache
 
 import yaml
 
-from code_analysis import MODULE_ROOT
+from code_analysis.paths import MODULE_ROOT
 from code_analysis.models import SymbolInfo
 
 

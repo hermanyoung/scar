@@ -15,7 +15,7 @@ from pathlib import Path
 
 import structlog
 
-from code_analysis import MODULE_ROOT
+from code_analysis.paths import MODULE_ROOT
 from code_analysis.models import CallEdge, CallGraph, ReferenceEdge
 
 logger = structlog.get_logger()
