@@ -1,9 +1,9 @@
 # Plan 019 — Invariant Debt Remediation
 
-**Status:** Implemented (merged to main 2026-07-14)
+**Status:** [x] Implemented (merged to main 2026-07-14)
 **Date:** 2026-07-06
 **Source:** Verified plan-backlog audit of 2026-07-05/06 (plans 001–017 checked deliverable-by-deliverable against the code) + PRR follow-ups
-**Depends on:** `docs/09-plans/018-operational-readiness-remediation.md` — **hard dependency**, see §0.3
+**Depends on:** `docs/09-plans/018-operational-readiness-remediation-DONE.md` — **hard dependency**, see §0.3
 **Closes residuals from:** plans 002 (§1.6, §1.7, §1.8, §2.1, §2.2, §3.4), 005 (test gaps), 006 (hadolint CWE map, IDOR rubric), 009 (P3 overflow)
 
 ---
@@ -28,7 +28,7 @@ This plan fixes exactly those. It is written for a fresh agent with no prior con
 1. `AGENTS.md` + `CLAUDE.md` (repo root) — especially critical rules #3, #5, #9 (never trust LLM-echoed identifiers), #11 (no fallbacks).
 2. `docs/03-principles/01-project-principles.md` — P9 (breaking changes free), P10, P12, P13.
 3. `docs/05-standards/01-python-coding-standards.md`, `02-testing-standards.md`.
-4. `docs/09-plans/018-operational-readiness-remediation.md` §2 (Degradation model + `state.degrade()` API) — this plan **uses** that API.
+4. `docs/09-plans/018-operational-readiness-remediation-DONE.md` §2 (Degradation model + `state.degrade()` API) — this plan **uses** that API.
 5. Every file you edit, in full, before editing.
 
 ### 0.2 Binding constraints
@@ -45,7 +45,7 @@ cd /path/to/scar
 git log --oneline -5        # CONFIRM a commit implementing plan 018 exists (degradation ledger etc.).
 rg -l "class Degradation" src/security_review/models/   # MUST hit models/degradation.py.
 rg -n "def degrade" src/security_review/passes/state.py # MUST hit.
-# If either check fails: STOP. Implement docs/09-plans/018-operational-readiness-remediation.md first.
+# If either check fails: STOP. Implement docs/09-plans/018-operational-readiness-remediation-DONE.md first.
 pip install -e '.[all]'
 python -c "import security_review; print(security_review.__file__)"   # must be THIS checkout
 pytest tests/unit/ -v && python scripts/check_rules.py --all           # green baseline
@@ -478,15 +478,15 @@ The backlog's `Status:` headers no longer reflect verified reality. Set each hea
 
 | File (docs/09-plans/) | Set `**Status:**` to | Disposition line |
 |---|---|---|
-| 001-implementation-plan.md | `Implemented` | `Delivered (architecture evolved: batching dropped for per-CWE selection; prompts absorbed into config/taxonomy/cwe.yaml).` |
-| 002-codebase-remediation-plan.md | `Partially implemented — residuals closed by plans 018/019` | `Items 1.1/1.5/3.3/3.5/3.6 done; 1.3→018 WP1, 1.4→018 WP4; 1.6/1.7/1.8/2.1/2.2/3.4→019; 3.1/3.2 obsolete.` |
-| 003-code-intel-integration-plan.md | `Superseded` | `Engine extraction delivered via plan 005 (src/code_analysis); Pass-1/selection integration redesigned by plan 010.` |
-| 004-noise-reduction-and-ci-integration-plan.md | `Planned — re-scoped` | `CI layer delivered by plan 018 (WP5 --fail-on, WP11 ci.yml). Remaining scope: pre-filter, precedents, confidence gate, --diff.` |
-| 005-code-quality-module-plan.md | `Implemented` | `Test gaps (C# parser fixtures/tests) closed by plan 019 WP-G.` |
-| 006-coverage-and-detection-improvements.md | `Implemented — gaps closed by 018/019` | `Coverage-in-reports→018 WP1/WP2; hadolint CWE map + CWE-829 + IDOR rubric→019 WP-C/WP-D.` |
-| 007-pre-materialized-context.md | `Implemented` | `Extended to all LLM passes; dual-mode fallback deliberately dropped (ADR-003, AGENTS.md rule 10).` |
-| 008-copilot-concurrency-architecture.md | `Implemented` | `Config surface evolved to per-provider blocks; hardcoded __init__ defaults removed by plan 019 WP-D.` |
-| 009-provider-model-improvements.md | `Partially implemented` | `P1 done; P2 rejected (conflicts with pricing.yaml rule + 018 WP4); P3→019 WP-F; P4/P6 not planned.` |
+| 001-implementation-plan-DONE.md | `Implemented` | `Delivered (architecture evolved: batching dropped for per-CWE selection; prompts absorbed into config/taxonomy/cwe.yaml).` |
+| 002-codebase-remediation-plan-DONE.md | `Partially implemented — residuals closed by plans 018/019` | `Items 1.1/1.5/3.3/3.5/3.6 done; 1.3→018 WP1, 1.4→018 WP4; 1.6/1.7/1.8/2.1/2.2/3.4→019; 3.1/3.2 obsolete.` |
+| 003-code-intel-integration-plan-WIP.md | `Superseded` | `Engine extraction delivered via plan 005 (src/code_analysis); Pass-1/selection integration redesigned by plan 010.` |
+| 004-noise-reduction-and-ci-integration-plan-WIP.md | `Planned — re-scoped` | `CI layer delivered by plan 018 (WP5 --fail-on, WP11 ci.yml). Remaining scope: pre-filter, precedents, confidence gate, --diff.` |
+| 005-code-quality-module-plan-DONE.md | `Implemented` | `Test gaps (C# parser fixtures/tests) closed by plan 019 WP-G.` |
+| 006-coverage-and-detection-improvements-DONE.md | `Implemented — gaps closed by 018/019` | `Coverage-in-reports→018 WP1/WP2; hadolint CWE map + CWE-829 + IDOR rubric→019 WP-C/WP-D.` |
+| 007-pre-materialized-context-DONE.md | `Implemented` | `Extended to all LLM passes; dual-mode fallback deliberately dropped (ADR-003, AGENTS.md rule 10).` |
+| 008-copilot-concurrency-architecture-DONE.md | `Implemented` | `Config surface evolved to per-provider blocks; hardcoded __init__ defaults removed by plan 019 WP-D.` |
+| 009-provider-model-improvements-WIP.md | `Partially implemented` | `P1 done; P2 rejected (conflicts with pricing.yaml rule + 018 WP4); P3→019 WP-F; P4/P6 not planned.` |
 
 Leave 010–017 headers as they are (Draft/Planned — accurate). Also:
 

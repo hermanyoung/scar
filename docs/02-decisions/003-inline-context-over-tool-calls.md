@@ -33,6 +33,6 @@ File reading is a local operation (microseconds). Delegating it to a remote LLM 
 
 ## References
 
-- `docs/06-plans/007-pre-materialized-context.md` — implementation plan
+- `docs/09-plans/007-pre-materialized-context-DONE.md` — implementation plan
 - `src/security_review/context_builder.py` — file reading and token budgeting
 - Principle P14 in `docs/03-principles/01-project-principles.md`

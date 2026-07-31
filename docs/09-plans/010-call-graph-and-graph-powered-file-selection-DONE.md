@@ -1,7 +1,7 @@
 # Plan 010 — Call Graph and Graph-Powered File Selection
 
 **Date:** 2026-05-12
-**Status:** Implemented (merged to main 2026-07-17)
+**Status:** [x] Implemented (merged to main 2026-07-17)
 **Research:** [007-PostgreSQL-ApacheAGE-pgvector.md](../98-research/007-PostgreSQL-ApacheAGE-pgvector.md)
 **Spec:** [001-security-code-review-module-spec.md](../98-research/001-security-code-review-module-spec.md)
 

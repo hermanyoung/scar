@@ -1,7 +1,7 @@
 # Plan 020 — Adversarial Verification & Pipeline Resilience
 
 **Date:** 2026-07-05
-**Status:** Implemented (Phases 1–3, merged to main 2026-07-14); Phase 4 (semantic dedup clustering) not implemented — optional, lowest priority, no `cluster_id` in the codebase
+**Status:** [x] Implemented (Phases 1–3, merged to main 2026-07-14); Phase 4 (semantic dedup clustering) not implemented — optional, lowest priority, no `cluster_id` in the codebase
 **Depends on:** None. Compatible with Plan 017 (Harness Extraction) — see [§ Package-layout note](#package-layout-note).
 **Blocks:** None.
 

@@ -1,7 +1,7 @@
 # Plan 003: Integrate code_intel into the Pipeline
 
 **Date:** 2 May 2026
-**Status:** Superseded
+**Status:** [~] Superseded — implemented as src/code_analysis; scripts/code_intel.py prototype removed 2026-07-31
 **Scope:** Replace keyword-based security-weight scoring in Pass 1 with code_intel's PageRank + unsafe patterns + quality metrics. Feed structural data to downstream passes.
 **Disposition (2026-07-06):** Engine extraction delivered via plan 005 (src/code_analysis); Pass-1/selection integration redesigned by plan 010.
 

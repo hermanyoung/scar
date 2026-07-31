@@ -1,6 +1,6 @@
 # Plan 018 — Operational Readiness Remediation
 
-**Status:** Ready for implementation
+**Status:** [x] Implemented (merged to main ~2026-07-14 with plan 019; status line corrected 2026-07-31)
 **Date:** 2026-07-05
 **Source:** Production Readiness Review (PRR) conducted 2026-07-05 against commit `1786c28` + working-tree fixes
 **Depends on:** nothing (self-contained)

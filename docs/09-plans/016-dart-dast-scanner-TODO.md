@@ -1,7 +1,7 @@
 # Plan 016 — DART: Dynamic Application Security Testing Scanner
 
 **Date:** 2026-05-17
-**Status:** Draft
+**Status:** [ ] Draft — not implemented
 **Depends on:** Plan 012 (external SARIF ingestion — for SCAR correlation), Plan 017 (harness extraction)
 **Research:** [008-Pentest Toolchain Research](../98-research/008-The%202025–2026%20Command-Line%20Web%20Application%20Penetration%20Testing%20Toolchain%2C%20with%20LLM-Assisted%20Verification.md)
 

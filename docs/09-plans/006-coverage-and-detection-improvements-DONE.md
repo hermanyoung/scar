@@ -1,7 +1,7 @@
 # Plan 006: Coverage Model and Detection Improvements
 
 **Date:** 3 May 2026
-**Status:** Implemented — gaps closed by 018/019
+**Status:** [x] Implemented — gaps closed by 018/019
 **Branch:** feat/coverage-and-detection-improvements
 **Scope:** Build a coverage awareness layer, add deterministic Dockerfile scanning, strengthen LLM prompts for config/IaC, add corpus tests for new detections, and improve IDOR detection reliability.
 **Disposition (2026-07-06):** Coverage-in-reports→018 WP1/WP2; hadolint CWE map + CWE-829 + IDOR rubric→019 WP-C/WP-D.

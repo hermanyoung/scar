@@ -2,7 +2,7 @@
 
 **Source Spec:** `docs/98-research/001-security-code-review-module-spec.md`
 **Created:** 1 May 2026
-**Status:** Implemented
+**Status:** [x] Implemented
 **Disposition (2026-07-06):** Delivered (architecture evolved: batching dropped for per-CWE selection; prompts absorbed into config/taxonomy/cwe.yaml).
 
 ---

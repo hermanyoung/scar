@@ -1,7 +1,7 @@
 # Plan 017 — Harness Extraction
 
 **Date:** 2026-05-17
-**Status:** Draft
+**Status:** [ ] Draft — not implemented
 **Depends on:** None (prerequisite for Plan 016)
 **Blocks:** Plan 016 (DART)
 

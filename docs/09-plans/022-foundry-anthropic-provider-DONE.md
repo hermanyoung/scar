@@ -1,6 +1,6 @@
 # Plan 022 — Azure AI Foundry Provider for Anthropic Claude Models
 
-**Status:** Ready for implementation
+**Status:** [x] Implemented (merged to main 2026-07-31)
 **Date:** 2026-07-30
 **Source:** Provider-architecture review requested to evaluate Azure AI Foundry (Claude-on-Foundry) as a new `foundry:` provider, following the same pattern as the existing `openai:`/`anthropic:`/`copilot:`/`claude:`/`codex:` providers in `src/security_review/providers.py`.
 **Depends on:** none. Independent of Plan 021 (in progress on `main` at time of writing — do not touch the files that plan is mid-editing: `context_builder.py`, `models/degradation.py`, `passes/config_review.py`, `passes/inventory.py`, `passes/sast.py`, `tools/specs/*.yaml`).

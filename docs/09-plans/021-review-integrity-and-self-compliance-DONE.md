@@ -1,6 +1,6 @@
 # Plan 021 — Review Integrity & Self-Compliance Remediation
 
-**Status:** Ready for implementation
+**Status:** [x] Implemented (merged to main 2026-07-31)
 **Date:** 2026-07-25
 **Source:** Full-context architecture, enforcement-chain, and operability review of 2026-07-25. Every finding below was verified against the code line-by-line (file:line evidence inline). Baseline: all gates green — 31/31 rules, 471 unit tests, 20 integration tests, `health-check` clean.
 **Depends on:** none. Plans 018/019/020/014/010 are already merged to main (HEAD `4708336` at time of writing).
@@ -20,7 +20,7 @@ It deliberately does **not** include large refactors (see §0.4) — behaviour f
 2. `docs/03-principles/01-project-principles.md` — especially P6 (fail fast/loud), P13 (never trust LLM-echoed identifiers), P11 (budget), P14 (pre-materialized context).
 3. `docs/05-standards/01-python-coding-standards.md` and `02-testing-standards.md`.
 4. `src/security_review/models/degradation.py` — the degradation model this plan extends. Its docstring is the contract: *"Every event that silently reduced coverage or fidelity must be recorded as a Degradation and rendered in every report format."*
-5. `docs/09-plans/019-invariant-debt-remediation.md` §0 — the house style for how work packages here are written and committed (this plan follows it).
+5. `docs/09-plans/019-invariant-debt-remediation-DONE.md` §0 — the house style for how work packages here are written and committed (this plan follows it).
 
 ### 0.2 Binding constraints (recap — violations will fail review)
 

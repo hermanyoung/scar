@@ -1,6 +1,6 @@
 # Plan 008: Copilot SDK Concurrency Architecture
 
-**Status:** Implemented
+**Status:** [x] Implemented
 **Disposition (2026-07-06):** Config surface evolved to per-provider blocks; hardcoded __init__ defaults removed by plan 019 WP-D.
 
 ## Problem Statement
